@@ -1,1 +1,12 @@
 /target
+Cargo.lock
+.DS_Store
+.env
+.env.local
+.short_url/
+web/node_modules
+web/.next
+web/out
+web/build
+web/.env.local
+*.log
