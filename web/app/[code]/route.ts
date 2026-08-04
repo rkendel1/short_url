@@ -4,9 +4,9 @@ import { redirect } from 'next/navigation';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ code: string }> }
 ) {
-  const { code } = params;
+  const { code } = await params;
 
   const url = await getLink(code);
 

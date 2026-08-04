@@ -3,10 +3,10 @@ import { updateLinkUrl, getLinkData } from '@/lib/kv';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const { code } = params;
+    const { code } = await params;
     const data = await getLinkData(code);
 
     if (!data) {
@@ -34,10 +34,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { code: string } }
+  { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const { code } = params;
+    const { code } = await params;
     const body = await request.json();
     const { url, fingerprint, pin } = body;
 

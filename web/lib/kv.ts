@@ -55,8 +55,8 @@ export async function getLinkData(code: string): Promise<LinkData | null> {
     url,
     clicks: clicks || 0,
     created,
-    updated,
-    last,
+    updated: updated ?? undefined,
+    last: last ?? undefined,
     owner,
   };
 }
