@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { createClient } from '@vercel/kv';
 
 export interface LinkData {
   url: string;
@@ -8,6 +8,11 @@ export interface LinkData {
   last?: number;
   owner: string;
 }
+
+const kv = createClient({
+  url: process.env.KV_REST_API_URL || process.env.KV_URL || process.env.REDIS_URL,
+  token: process.env.KV_REST_API_TOKEN,
+});
 
 export async function createLink(
   code: string,

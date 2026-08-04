@@ -17,7 +17,11 @@ In Vercel Dashboard:
 1. Go to Storage → KV Database
 2. Create a new database
 3. Add to your project
-4. Environment variables are auto-populated
+4. Environment variables are auto-populated:
+   - `KV_REST_API_URL` - The REST API endpoint for the KV database
+   - `KV_REST_API_TOKEN` - Authentication token for the KV REST API
+   - `REDIS_URL` - Direct Redis protocol connection string
+   - `KV_URL` - Alternative KV database URL
 
 ### 3. Custom Domain
 Settings → Domains → Add domain
@@ -55,15 +59,26 @@ Ensure `KV_REST_API_URL` and `KV_REST_API_TOKEN` are set.
 
 ### Environment Variables
 
+**Required (for KV/Redis):**
 ```bash
-# Required
-KV_REST_API_URL=redis://...or vercel kv url
-KV_REST_API_TOKEN=token
+# Primary KV REST API (used by @vercel/kv library)
+KV_REST_API_URL=https://... # Auto-populated by Vercel
+KV_REST_API_TOKEN=... # Auto-populated by Vercel
+```
 
-# Optional
-BASE_URL=https://sho.rt
+**Optional (auto-populated by Vercel when Redis is integrated):**
+```bash
+REDIS_URL=... # Direct Redis protocol URL
+KV_URL=... # Alternative KV database URL
+```
+
+**Application Configuration:**
+```bash
+BASE_URL=https://sho.rt # Your custom domain
 NODE_ENV=production
 ```
+
+**Note:** When deploying on Vercel with KV database integration, Vercel automatically populates `KV_REST_API_URL` and `KV_REST_API_TOKEN`. The `@vercel/kv` library uses these variables to connect to your Redis database.
 
 ## Docker
 
