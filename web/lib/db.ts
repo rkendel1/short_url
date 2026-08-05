@@ -12,7 +12,7 @@ export interface LinkData {
 
 let db: PGlite | null = null;
 
-async function getDb(): Promise<PGlite> {
+export async function getDb(): Promise<PGlite> {
   if (!db) {
     db = new PGlite();
     await initializeSchema();

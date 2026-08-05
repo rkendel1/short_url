@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateLinkUrl, getLinkData } from '@/lib/db';
+import { updateLinkUrl, getLinkData, getDb } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -70,6 +70,52 @@ export async function PATCH(
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to update link' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ code: string }> }
+) {
+  try {
+    const { code } = await params;
+    const body = await request.json();
+    const { fingerprint } = body;
+
+    if (!fingerprint) {
+      return NextResponse.json(
+        { error: 'Missing fingerprint' },
+        { status: 400 }
+      );
+    }
+
+    const linkData = await getLinkData(code);
+    if (!linkData) {
+      return NextResponse.json(
+        { error: 'Link not found' },
+        { status: 404 }
+      );
+    }
+
+    if (linkData.owner !== fingerprint) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 403 }
+      );
+    }
+
+    const dbInstance = await getDb();
+    await dbInstance.exec(
+      `DELETE FROM links WHERE code = $1`,
+      [code]
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete link' },
       { status: 500 }
     );
   }

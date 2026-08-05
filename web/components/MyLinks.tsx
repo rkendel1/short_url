@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { EditLinkModal } from './EditLinkModal';
+import { getAllLinks, deleteLink as deleteLinkFromDB } from '@/lib/browser-db';
+import { syncFromServerLinks, syncChanges, queueChange } from '@/lib/sync';
 
 interface Link {
   code: string;
@@ -22,25 +24,39 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const fetchLinks = async () => {
+  const loadLinks = async () => {
     try {
-      const response = await fetch('/api/my-links', {
-        headers: { 'x-fingerprint': fingerprint },
-      });
+      // Load from browser DB first (fast)
+      const cachedLinks = await getAllLinks();
+      setLinks(cachedLinks.map(link => ({
+        code: link.code,
+        url: link.url,
+        clicks: link.clicks,
+        created: link.created,
+        updated: link.updated,
+      })));
 
-      if (response.ok) {
-        const data = await response.json();
-        setLinks(data.links);
-      }
+      // Sync from server in background
+      await syncFromServerLinks(fingerprint);
+
+      // Reload from browser DB (now synced)
+      const syncedLinks = await getAllLinks();
+      setLinks(syncedLinks.map(link => ({
+        code: link.code,
+        url: link.url,
+        clicks: link.clicks,
+        created: link.created,
+        updated: link.updated,
+      })));
     } catch (err) {
-      console.error('Failed to fetch links:', err);
+      console.error('Failed to load links:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLinks();
+    loadLinks();
   }, [fingerprint, refresh]);
 
   const handleCopy = (code: string, url: string) => {
@@ -49,9 +65,36 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
     setTimeout(() => setCopied(null), 2000);
   };
 
+  const handleDelete = async (code: string) => {
+    if (!confirm('Delete this link?')) return;
+
+    try {
+      // Delete from browser DB immediately (UX)
+      await deleteLinkFromDB(code);
+      setLinks(links.filter(l => l.code !== code));
+
+      // Queue sync to server
+      queueChange({ type: 'delete', code });
+      await syncChanges(fingerprint);
+    } catch (err) {
+      console.error('Failed to delete link:', err);
+    }
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleDateString();
   };
+
+  if (loading) {
+    return (
+      <div className="links-section">
+        <h2>My Links</h2>
+        <div className="empty-state">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (links.length === 0) {
     return (
@@ -95,6 +138,12 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
             >
               ✏️ Edit
             </button>
+            <button
+              className="secondary danger"
+              onClick={() => handleDelete(link.code)}
+            >
+              🗑️ Delete
+            </button>
           </div>
         </div>
       ))}
@@ -107,7 +156,7 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
           onClose={() => setEditingCode(null)}
           onUpdate={() => {
             setEditingCode(null);
-            fetchLinks();
+            loadLinks();
           }}
         />
       )}
