@@ -1,6 +1,6 @@
 # URL Shortener | sho.rt
 
-A lightweight, account-free URL shortener built on **Next.js + Vercel KV** with digital fingerprint recognition, editable destinations, QR codes, and an optional Rust + sled CLI companion.
+A lightweight, account-free URL shortener built on **Next.js + PostgreSQL** with digital fingerprint recognition, editable destinations, QR codes, and an optional Rust CLI companion.
 
 ## Features
 
@@ -10,21 +10,19 @@ A lightweight, account-free URL shortener built on **Next.js + Vercel KV** with 
 - 📲 **QR Codes** — First-class support with download functionality
 - 📊 **Basic Analytics** — Click tracking and timestamp history
 - 🔐 **Optional PIN Protection** — Extra security layer for sensitive links
-- 🦀 **Rust CLI Companion** — Local cache and terminal workflows (optional)
+- 🦀 **Rust CLI Companion** — Terminal-based link management (optional)
 - 🌐 **Privacy-Friendly** — No email, passwords, or trackers
 
 ## Architecture
 
 ### Hosted (Primary)
 - **Next.js 15+** with App Router
-- **Vercel KV** for all data storage
-- **Edge-compatible** redirects for low latency
+- **PostgreSQL** with Prisma ORM for data storage
 - **Client-side fingerprinting** for ownership verification
 
 ### Local Optional
-- **Rust CLI** using sled database
-- Local cache/history for offline use
-- Can sync with hosted API
+- **Rust CLI** for creating and managing links
+- Can interact with hosted API or use local storage
 
 ## Setup
 
@@ -36,24 +34,29 @@ cd web
 npm install
 ```
 
-2. Set up Vercel KV:
-   - Create a [Vercel project](https://vercel.com)
-   - Add KV database from the Vercel console
-   - Copy `KV_REST_API_URL` and `KV_REST_API_TOKEN` to `.env.local`
+2. Set up PostgreSQL database:
+   - Create a PostgreSQL database (local or hosted)
+   - Get the database connection string
 
 3. Create `.env.local`:
 ```bash
 cp .env.example .env.local
+# Edit .env.local and set DATABASE_URL to your PostgreSQL connection string
 ```
 
-4. Development server:
+4. Run database migrations:
+```bash
+npm run prisma:migrate
+```
+
+5. Development server:
 ```bash
 npm run dev
 ```
 
 Visit `http://localhost:3000`
 
-5. Deploy to Vercel:
+6. Deploy to Vercel:
 ```bash
 vercel
 ```
@@ -183,17 +186,22 @@ Get QR code as data URI.
 }
 ```
 
-## Data Model (Vercel KV)
+## Data Model (PostgreSQL)
 
 ```
-url:{shortCode}       → destination URL
-clicks:{shortCode}    → click counter (integer)
-created:{shortCode}   → Unix timestamp
-updated:{shortCode}   → last update timestamp
-last:{shortCode}      → last click timestamp
-owner:{shortCode}     → fingerprint hash
-pin:{shortCode}       → optional PIN hash
-user:{fingerprint}    → set of codes owned by fingerprint
+Link Table:
+- code (String, PRIMARY KEY) — Unique short code
+- url (String) — Target destination URL
+- clicks (Int) — Click counter
+- created (Int) — Unix timestamp of creation
+- updated (Int, nullable) — Unix timestamp of last update
+- last (Int, nullable) — Unix timestamp of last click
+- owner (String) — Fingerprint hash of creator
+- pin (String, nullable) — Optional PIN hash for extra security
+
+Indexes:
+- owner — For querying links by fingerprint
+- created — For sorting and filtering by date
 ```
 
 ## Security & Privacy
@@ -276,14 +284,14 @@ The application uses a **cryptographically secure, account-free identity system*
 ### Client Utilities
 - **fingerprint.ts** — Browser fingerprint generation and storage
 - **base62.ts** — Short code generation and validation
-- **kv.ts** — Vercel KV operations wrapper
+- **storage.ts** — Prisma database operations
 
 ## Development
 
 ### Technologies
 - **React 19** with TypeScript
 - **Next.js 15** App Router
-- **Vercel KV** for persistence
+- **PostgreSQL** with Prisma ORM for persistence
 - **qrcode** for QR generation
 - **SHA-256** for fingerprinting
 
@@ -308,7 +316,7 @@ web/
 ├── lib/
 │   ├── fingerprint.ts    # Client fingerprinting
 │   ├── base62.ts         # Code generation
-│   └── kv.ts             # KV operations
+│   └── storage.ts        # Prisma database operations
 └── package.json
 
 src/
@@ -320,8 +328,14 @@ src/
 ### Vercel
 1. Push code to GitHub
 2. Import project at [vercel.com](https://vercel.com)
-3. Set environment variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`)
+3. Set environment variables:
+   - `DATABASE_URL` - PostgreSQL connection string
 4. Deploy
+
+### Other Platforms
+Deploy to any Node.js-compatible platform with PostgreSQL support:
+- Railway, Render, Heroku, DigitalOcean App Platform, etc.
+- Ensure `DATABASE_URL` environment variable is set
 
 ### Custom Domain
 Set `BASE_URL` environment variable to your custom domain (e.g., `https://s.example.com`)
