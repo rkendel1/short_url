@@ -13,6 +13,66 @@ A lightweight, account-free URL shortener built on **Next.js + PostgreSQL** with
 - 🦀 **Rust CLI Companion** — Terminal-based link management (optional)
 - 🌐 **Privacy-Friendly** — No email, passwords, or trackers
 
+## How to Use
+
+### Create a Short Link
+
+1. Visit **https://0-2.ca** (or your deployed instance)
+2. Paste your long URL into the input field
+3. Click **"Create Short Link"**
+4. Your short URL appears instantly (e.g., `https://0-2.ca/ABC123`)
+5. Share it anywhere — no account needed!
+
+**Behind the scenes:** Your browser generates a unique digital fingerprint that identifies you without any credentials. This fingerprint is stored securely in your browser (never shared with anyone unless you choose to set a PIN).
+
+### Get a QR Code
+
+Each short link automatically generates a scannable QR code:
+
+1. After creating a link, a **QR code appears on screen**
+2. Click **"Download QR Code"** to save it as an image
+3. Share the QR code on posters, documents, or presentations
+4. Anyone can scan it with their phone camera
+
+**The QR code never expires** — even if you update the link destination, the QR code remains valid and points to the new URL.
+
+### Edit or Update a Link
+
+1. Open **"My Links"** section (visible once you've created links)
+2. Find the link you want to edit
+3. Click the **"✏️ Edit"** button
+4. Enter the new destination URL
+5. Click **"Update Destination"**
+6. The link now redirects to the new URL
+
+**No account login needed.** We recognize you using your browser fingerprint. As long as you're on the same browser and haven't cleared your data, you can edit your links.
+
+### Understanding Your Digital Fingerprint Identity
+
+Instead of passwords and email:
+
+- **First Visit:** Your browser automatically creates a unique, stable fingerprint from:
+  - Your browser type and version
+  - Your device characteristics (screen size, language, etc.)
+  - A cryptographic key stored securely in your browser
+
+- **Your Identity:** This fingerprint becomes your account. It's stored in your browser's localStorage, so:
+  - ✅ Only you can see/edit your links (on this browser)
+  - ✅ No passwords to forget or compromise
+  - ✅ No personal information needed
+  - ✅ No tracking across websites
+
+- **Your Links:** The "My Links" section shows only links you created on this browser. The server verifies your fingerprint on every request.
+
+- **Optional PIN:** For extra security on important links, you can set a PIN. This adds a second layer of protection.
+
+### Multi-Device & Privacy Notes
+
+- **Same device, different browser?** → New fingerprint, new identity
+- **Cleared browser data?** → New fingerprint, can't edit old links (but they still work for others)
+- **Different device?** → New fingerprint, new identity
+- **Solution:** Save your link codes if you need to manage them across devices
+
 ## Architecture
 
 ### Hosted (Primary)
