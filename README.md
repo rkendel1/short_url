@@ -198,21 +198,72 @@ user:{fingerprint}    → set of codes owned by fingerprint
 
 ## Security & Privacy
 
-### Digital Fingerprint
-- Generated client-side from user agent, language, timezone, screen, color depth
-- SHA-256 hashed and truncated to 32 chars
-- Stored locally (not sent to third parties)
-- Regenerates on same browser
+### Cryptographic Identity System
+
+The application uses a **cryptographically secure, account-free identity system** that provides strong security without requiring login:
+
+#### How It Works
+
+1. **256-bit Seed Generation** — On first visit, a cryptographically secure 256-bit random seed is generated using `crypto.getRandomValues()`
+
+2. **ECDSA Key Pair** — A P-256 ECDSA key pair is generated using WebCrypto:
+   - Private key stored securely in IndexedDB (not extractable)
+   - Public key stored in localStorage for verification
+
+3. **Device Fingerprinting** — Browser/device characteristics are collected:
+   - User agent, language, timezone
+   - Screen dimensions, color depth, pixel ratio
+   - Canvas rendering fingerprint
+   - WebGL renderer information
+   - Hardware concurrency, device memory, touch points
+
+4. **Identity Derivation** — `Identity = SHA256(seed + deviceFingerprint + publicKey)`
+   - Combines randomness, device binding, and cryptographic identity
+   - Produces a stable 32-character hex identifier
+
+5. **Challenge-Response Signing** — For sensitive operations, challenges can be signed with the private key and verified using the public key
+
+#### Security Properties
+
+| Property | Description |
+|----------|-------------|
+| **Uniqueness** | 256-bit random seed + ECDSA key ensures cryptographic uniqueness |
+| **Stability** | Same identity persists across sessions on the same browser |
+| **Device Binding** | Fingerprint components tie identity to specific device |
+| **Verifiability** | ECDSA signatures provide cryptographic proof of identity |
+| **Privacy** | No personal data collected; no cross-device tracking |
+| **No Server Secrets** | All cryptographic operations happen client-side |
+
+#### What This Means
+
+✅ **Secure without login** — Your identity is cryptographically unique and cannot be guessed or brute-forced
+
+✅ **No account needed** — No email, password, or personal information required
+
+✅ **Device-bound** — Your links are tied to your browser/device combination
+
+✅ **Tamper-evident** — Any attempt to forge an identity would require the private key
+
+⚠️ **Device-specific** — Clearing browser data or using a different device creates a new identity
 
 ### PIN Protection
 - Optional additional layer for sensitive links
-- Required to update link destination
-- Stored as plain text (consider hashing in production)
+- Required to update link destination if set
+- Provides extra security even if device is compromised
+- Recommended for important/shared links
+
+### Best Practices
+
+1. **Set a PIN** on important links for added security
+2. **Don't clear browser data** if you want to keep access to your links
+3. **Use the same browser** to manage your links
+4. **Export/backup** link codes if you need them across devices
 
 ### Ownership Verification
-- All `create`, `update`, and `list` operations require matching fingerprint
-- Server validates fingerprint on every request
+- All `create`, `update`, `delete`, and `list` operations require matching identity
+- Server validates identity on every request
 - No cross-user access possible
+- Identity is cryptographically bound to the creating device
 
 ## Frontend Architecture
 
