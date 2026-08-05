@@ -9,9 +9,12 @@ Get sho.rt running in 5 minutes.
 cd web
 npm install
 
-# Copy and fill in Vercel KV credentials
+# Copy and fill in PostgreSQL credentials
 cp .env.example .env.local
-# Edit .env.local with your KV credentials
+# Edit .env.local with DATABASE_URL pointing to your PostgreSQL database
+
+# Run migrations
+npm run prisma:migrate
 
 npm run dev
 # Open http://localhost:3000
@@ -76,11 +79,10 @@ git push origin main
    - Import from GitHub
    - Select the `web` directory
 
-3. **Add KV Database**
-   - In Vercel dashboard, go to Storage
-   - Create KV Database
-   - Connect to your project
-   - Environment variables auto-populate
+3. **Add PostgreSQL Database**
+   - Connect a PostgreSQL database (e.g., from Railway, Render, Supabase, or AWS RDS)
+   - Get the DATABASE_URL connection string
+   - Add it as an environment variable in Vercel project settings
 
 4. **Deploy**
    - Click Deploy
@@ -147,9 +149,9 @@ curl -X PATCH http://localhost:3000/api/links/SECURE \
 - Check if PIN is set and provide it
 - Verify fingerprint matches
 
-**KV connection error?**
-- Verify credentials in .env.local
-- Check Vercel dashboard for KV status
+**Database connection error?**
+- Verify DATABASE_URL is set correctly in .env.local
+- Check PostgreSQL is running and accessible
 - Restart dev server
 
 **Rust CLI won't compile?**

@@ -1,6 +1,6 @@
 # URL Shortener | sho.rt
 
-A lightweight, account-free URL shortener built on **Next.js + Vercel KV** with digital fingerprint recognition, editable destinations, QR codes, and an optional Rust + sled CLI companion.
+A lightweight, account-free URL shortener built on **Next.js + PostgreSQL** with digital fingerprint recognition, editable destinations, QR codes, and an optional Rust CLI companion.
 
 ## Features
 
@@ -10,21 +10,79 @@ A lightweight, account-free URL shortener built on **Next.js + Vercel KV** with 
 - 📲 **QR Codes** — First-class support with download functionality
 - 📊 **Basic Analytics** — Click tracking and timestamp history
 - 🔐 **Optional PIN Protection** — Extra security layer for sensitive links
-- 🦀 **Rust CLI Companion** — Local cache and terminal workflows (optional)
+- 🦀 **Rust CLI Companion** — Terminal-based link management (optional)
 - 🌐 **Privacy-Friendly** — No email, passwords, or trackers
+
+## How to Use
+
+### Create a Short Link
+
+1. Visit **https://0-2.ca** (or your deployed instance)
+2. Paste your long URL into the input field
+3. Click **"Create Short Link"**
+4. Your short URL appears instantly (e.g., `https://0-2.ca/ABC123`)
+5. Share it anywhere — no account needed!
+
+**Behind the scenes:** Your browser generates a unique digital fingerprint that identifies you without any credentials. This fingerprint is stored securely in your browser (never shared with anyone unless you choose to set a PIN).
+
+### Get a QR Code
+
+Each short link automatically generates a scannable QR code:
+
+1. After creating a link, a **QR code appears on screen**
+2. Click **"Download QR Code"** to save it as an image
+3. Share the QR code on posters, documents, or presentations
+4. Anyone can scan it with their phone camera
+
+**The QR code never expires** — even if you update the link destination, the QR code remains valid and points to the new URL.
+
+### Edit or Update a Link
+
+1. Open **"My Links"** section (visible once you've created links)
+2. Find the link you want to edit
+3. Click the **"✏️ Edit"** button
+4. Enter the new destination URL
+5. Click **"Update Destination"**
+6. The link now redirects to the new URL
+
+**No account login needed.** We recognize you using your browser fingerprint. As long as you're on the same browser and haven't cleared your data, you can edit your links.
+
+### Understanding Your Digital Fingerprint Identity
+
+Instead of passwords and email:
+
+- **First Visit:** Your browser automatically creates a unique, stable fingerprint from:
+  - Your browser type and version
+  - Your device characteristics (screen size, language, etc.)
+  - A cryptographic key stored securely in your browser
+
+- **Your Identity:** This fingerprint becomes your account. It's stored in your browser's localStorage, so:
+  - ✅ Only you can see/edit your links (on this browser)
+  - ✅ No passwords to forget or compromise
+  - ✅ No personal information needed
+  - ✅ No tracking across websites
+
+- **Your Links:** The "My Links" section shows only links you created on this browser. The server verifies your fingerprint on every request.
+
+- **Optional PIN:** For extra security on important links, you can set a PIN. This adds a second layer of protection.
+
+### Multi-Device & Privacy Notes
+
+- **Same device, different browser?** → New fingerprint, new identity
+- **Cleared browser data?** → New fingerprint, can't edit old links (but they still work for others)
+- **Different device?** → New fingerprint, new identity
+- **Solution:** Save your link codes if you need to manage them across devices
 
 ## Architecture
 
 ### Hosted (Primary)
 - **Next.js 15+** with App Router
-- **Vercel KV** for all data storage
-- **Edge-compatible** redirects for low latency
+- **PostgreSQL** with Prisma ORM for data storage
 - **Client-side fingerprinting** for ownership verification
 
 ### Local Optional
-- **Rust CLI** using sled database
-- Local cache/history for offline use
-- Can sync with hosted API
+- **Rust CLI** for creating and managing links
+- Can interact with hosted API or use local storage
 
 ## Setup
 
@@ -36,24 +94,29 @@ cd web
 npm install
 ```
 
-2. Set up Vercel KV:
-   - Create a [Vercel project](https://vercel.com)
-   - Add KV database from the Vercel console
-   - Copy `KV_REST_API_URL` and `KV_REST_API_TOKEN` to `.env.local`
+2. Set up PostgreSQL database:
+   - Create a PostgreSQL database (local or hosted)
+   - Get the database connection string
 
 3. Create `.env.local`:
 ```bash
 cp .env.example .env.local
+# Edit .env.local and set DATABASE_URL to your PostgreSQL connection string
 ```
 
-4. Development server:
+4. Run database migrations:
+```bash
+npm run prisma:migrate
+```
+
+5. Development server:
 ```bash
 npm run dev
 ```
 
 Visit `http://localhost:3000`
 
-5. Deploy to Vercel:
+6. Deploy to Vercel:
 ```bash
 vercel
 ```
@@ -183,17 +246,22 @@ Get QR code as data URI.
 }
 ```
 
-## Data Model (Vercel KV)
+## Data Model (PostgreSQL)
 
 ```
-url:{shortCode}       → destination URL
-clicks:{shortCode}    → click counter (integer)
-created:{shortCode}   → Unix timestamp
-updated:{shortCode}   → last update timestamp
-last:{shortCode}      → last click timestamp
-owner:{shortCode}     → fingerprint hash
-pin:{shortCode}       → optional PIN hash
-user:{fingerprint}    → set of codes owned by fingerprint
+Link Table:
+- code (String, PRIMARY KEY) — Unique short code
+- url (String) — Target destination URL
+- clicks (Int) — Click counter
+- created (Int) — Unix timestamp of creation
+- updated (Int, nullable) — Unix timestamp of last update
+- last (Int, nullable) — Unix timestamp of last click
+- owner (String) — Fingerprint hash of creator
+- pin (String, nullable) — Optional PIN hash for extra security
+
+Indexes:
+- owner — For querying links by fingerprint
+- created — For sorting and filtering by date
 ```
 
 ## Security & Privacy
@@ -276,14 +344,14 @@ The application uses a **cryptographically secure, account-free identity system*
 ### Client Utilities
 - **fingerprint.ts** — Browser fingerprint generation and storage
 - **base62.ts** — Short code generation and validation
-- **kv.ts** — Vercel KV operations wrapper
+- **storage.ts** — Prisma database operations
 
 ## Development
 
 ### Technologies
 - **React 19** with TypeScript
 - **Next.js 15** App Router
-- **Vercel KV** for persistence
+- **PostgreSQL** with Prisma ORM for persistence
 - **qrcode** for QR generation
 - **SHA-256** for fingerprinting
 
@@ -308,7 +376,7 @@ web/
 ├── lib/
 │   ├── fingerprint.ts    # Client fingerprinting
 │   ├── base62.ts         # Code generation
-│   └── kv.ts             # KV operations
+│   └── storage.ts        # Prisma database operations
 └── package.json
 
 src/
@@ -320,8 +388,14 @@ src/
 ### Vercel
 1. Push code to GitHub
 2. Import project at [vercel.com](https://vercel.com)
-3. Set environment variables (`KV_REST_API_URL`, `KV_REST_API_TOKEN`)
+3. Set environment variables:
+   - `DATABASE_URL` - PostgreSQL connection string
 4. Deploy
+
+### Other Platforms
+Deploy to any Node.js-compatible platform with PostgreSQL support:
+- Railway, Render, Heroku, DigitalOcean App Platform, etc.
+- Ensure `DATABASE_URL` environment variable is set
 
 ### Custom Domain
 Set `BASE_URL` environment variable to your custom domain (e.g., `https://s.example.com`)
