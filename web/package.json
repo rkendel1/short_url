@@ -4,24 +4,31 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma migrate deploy && prisma generate && next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs-pro": "^3.10.0",
+    "@prisma/adapter-pg": "^5.20.0",
+    "@prisma/client": "^5.20.0",
     "@upstash/redis": "^1.38.2",
     "@vercel/kv": "^3.0.0",
+    "dotenv": "^17.4.2",
     "next": "^15.0.0",
+    "pg": "^8.22.0",
     "qrcode": "^1.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.20.4",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "prisma": "^5.20.0",
+    "tsx": "^4.23.6",
     "typescript": "^5.0.0"
   }
 }
