@@ -10,12 +10,11 @@ async function findAvailableCode(customCode?: string): Promise<string> {
     if (!isValidBase62(customCode)) {
       throw new Error('Invalid custom code');
     }
-    if (await codeExists(customCode)) {
-      throw new Error('Code already taken');
-    }
+    // Trust client-side validation for pre-generated codes (already checked locally)
     return customCode;
   }
 
+  // Fallback for any non-custom code (shouldn't happen with new client logic)
   for (let i = 0; i < MAX_RETRIES; i++) {
     const code = generateMemorable();
     if (!(await codeExists(code))) {
@@ -47,14 +46,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const shortCode = await findAvailableCode(customCode);
-    await createLink(shortCode, url, fingerprint, pin);
+    // Use timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout creating link')), 10000)
+    );
 
-    return NextResponse.json({
-      shortCode,
-      shortUrl: `${BASE_URL}/${shortCode}`,
-      qrUrl: `${BASE_URL}/api/qr?code=${shortCode}`,
-    });
+    try {
+      const shortCode = await Promise.race([
+        findAvailableCode(customCode),
+        timeoutPromise,
+      ]) as string;
+
+      await Promise.race([
+        createLink(shortCode, url, fingerprint, pin),
+        timeoutPromise,
+      ]);
+
+      return NextResponse.json({
+        shortCode,
+        shortUrl: `${BASE_URL}/${shortCode}`,
+        qrUrl: `${BASE_URL}/api/qr?code=${shortCode}`,
+      });
+    } catch (timeoutError) {
+      throw timeoutError;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(

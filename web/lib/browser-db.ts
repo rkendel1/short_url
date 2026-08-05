@@ -10,28 +10,50 @@ export interface LocalLinkData {
 const DB_NAME = 'short_url_db';
 const STORE_NAME = 'links';
 const DB_VERSION = 1;
+const DB_TIMEOUT = 5000;
 
 let db: IDBDatabase | null = null;
+let dbInitError: Error | null = null;
 
 async function getDB(): Promise<IDBDatabase> {
   if (db) return db;
+  if (dbInitError) throw dbInitError;
 
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const database = (event.target as IDBOpenDBRequest).result;
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        const store = database.createObjectStore(STORE_NAME, { keyPath: 'code' });
-        store.createIndex('created', 'created', { unique: false });
+    try {
+      if (!indexedDB) {
+        throw new Error('IndexedDB not available');
       }
-    };
+
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      const timeout = setTimeout(() => {
+        dbInitError = new Error('IndexedDB timeout');
+        reject(dbInitError);
+      }, DB_TIMEOUT);
+
+      request.onerror = () => {
+        clearTimeout(timeout);
+        dbInitError = request.error || new Error('IndexedDB error');
+        reject(dbInitError);
+      };
+
+      request.onsuccess = () => {
+        clearTimeout(timeout);
+        db = request.result;
+        resolve(db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const database = (event.target as IDBOpenDBRequest).result;
+        if (!database.objectStoreNames.contains(STORE_NAME)) {
+          const store = database.createObjectStore(STORE_NAME, { keyPath: 'code' });
+          store.createIndex('created', 'created', { unique: false });
+        }
+      };
+    } catch (err) {
+      dbInitError = err instanceof Error ? err : new Error('Unknown error');
+      reject(dbInitError);
+    }
   });
 }
 

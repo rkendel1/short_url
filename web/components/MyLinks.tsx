@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { EditLinkModal } from './EditLinkModal';
-import { getAllLinks, deleteLink as deleteLinkFromDB } from '@/lib/browser-db';
-import { syncFromServerLinks, syncChanges, queueChange } from '@/lib/sync';
 
 interface Link {
   code: string;
@@ -26,30 +24,20 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
 
   const loadLinks = async () => {
     try {
-      // Load from browser DB first (fast)
-      const cachedLinks = await getAllLinks();
-      setLinks(cachedLinks.map(link => ({
-        code: link.code,
-        url: link.url,
-        clicks: link.clicks,
-        created: link.created,
-        updated: link.updated,
-      })));
+      // Fetch user's links from server
+      const response = await fetch('/api/my-links', {
+        headers: { 'x-fingerprint': fingerprint },
+      });
 
-      // Sync from server in background
-      await syncFromServerLinks(fingerprint);
+      if (!response.ok) {
+        throw new Error('Failed to fetch links');
+      }
 
-      // Reload from browser DB (now synced)
-      const syncedLinks = await getAllLinks();
-      setLinks(syncedLinks.map(link => ({
-        code: link.code,
-        url: link.url,
-        clicks: link.clicks,
-        created: link.created,
-        updated: link.updated,
-      })));
+      const data = await response.json();
+      setLinks(data.links || []);
     } catch (err) {
       console.error('Failed to load links:', err);
+      setLinks([]);
     } finally {
       setLoading(false);
     }
@@ -69,15 +57,23 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
     if (!confirm('Delete this link?')) return;
 
     try {
-      // Delete from browser DB immediately (UX)
-      await deleteLinkFromDB(code);
+      // Remove from UI immediately (UX)
       setLinks(links.filter(l => l.code !== code));
 
-      // Queue sync to server
-      queueChange({ type: 'delete', code });
-      await syncChanges(fingerprint);
+      // Delete from server
+      const response = await fetch(`/api/links/${code}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete link');
+      }
     } catch (err) {
       console.error('Failed to delete link:', err);
+      // Reload on error to show actual state
+      loadLinks();
     }
   };
 
@@ -101,7 +97,18 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
       <div className="links-section">
         <h2>My Links</h2>
         <div className="empty-state">
-          <p>No links created yet. Create one above!</p>
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔗</div>
+            <h3 style={{ fontSize: '18px', marginBottom: '8px', fontWeight: '600' }}>
+              No links yet
+            </h3>
+            <p style={{ color: '#666', marginBottom: '20px', lineHeight: '1.5' }}>
+              Create your first short link above to get started.
+            </p>
+            <p style={{ fontSize: '13px', color: '#999' }}>
+              Your links will appear here and be linked to your device.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -126,7 +133,7 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
               onClick={() =>
                 handleCopy(
                   link.code,
-                  `https://sho.rt/${link.code}`
+                  `https://0-2.ca/${link.code}`
                 )
               }
             >
