@@ -113,7 +113,7 @@ export async function updateLinkUrl(
 
 export async function getUserLinks(fingerprint: string): Promise<string[]> {
   const db = getRedis();
-  const codes = await db.smembers(`user:${fingerprint}`) as Promise<string[]>;
+  const codes = await db.smembers(`user:${fingerprint}`) as string[];
   return codes || [];
 }
 
