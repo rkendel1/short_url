@@ -3,8 +3,34 @@
 import { useState } from 'react';
 import { QRCodeDisplay } from './QRCodeDisplay';
 import { EditLinkModal } from './EditLinkModal';
-import { saveLink } from '@/lib/browser-db';
+import { saveLink, getLink as getLinkFromDB } from '@/lib/browser-db';
 import { queueChange, syncChanges } from '@/lib/sync';
+
+const NOUNS = [
+  'panda', 'eagle', 'tiger', 'shark', 'falcon', 'whale', 'otter', 'deer',
+  'fox', 'wolf', 'raven', 'bear', 'lynx', 'stag', 'elk', 'hare',
+  'seal', 'hawk', 'owl', 'dove', 'swan', 'mule', 'gecko', 'newt',
+  'moose', 'emu', 'ibis', 'kite', 'lark', 'oryx', 'puma',
+  'quail', 'roach', 'skua', 'tern', 'uakari', 'vole', 'wren', 'yak',
+  'zebra', 'albatross', 'badger', 'coral', 'dolphin', 'ferret',
+];
+
+function generateMemorable(): string {
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  const num = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  return `${noun}${num}`;
+}
+
+async function findLocalUniqueCode(maxRetries: number = 5): Promise<string> {
+  for (let i = 0; i < maxRetries; i++) {
+    const code = generateMemorable();
+    const existing = await getLinkFromDB(code);
+    if (!existing) {
+      return code;
+    }
+  }
+  throw new Error('Unable to generate unique code');
+}
 
 interface ShortenFormProps {
   fingerprint: string;
@@ -34,22 +60,25 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
     try {
       const now = Math.floor(Date.now() / 1000);
 
+      // Generate unique code locally (instant)
+      const code = customCode || await findLocalUniqueCode();
+
       // Save to browser DB first (optimistic update)
       const link = {
-        code: customCode || `temp-${Date.now()}`,
+        code,
         url,
         clicks: 0,
         created: now,
       };
       await saveLink(link);
 
-      // Send to backend
+      // Send to backend with the pre-generated code
       const response = await fetch('/api/shorten', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url,
-          customCode: customCode || undefined,
+          customCode: code,
           fingerprint,
           pin: pin || undefined,
         }),
@@ -61,14 +90,6 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
       }
 
       const data = await response.json();
-
-      // Update browser DB with actual code from server
-      if (data.shortCode && data.shortCode !== link.code) {
-        await saveLink({
-          ...link,
-          code: data.shortCode,
-        });
-      }
 
       // Queue sync to ensure it's on backend
       queueChange({
