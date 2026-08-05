@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { EditLinkModal } from './EditLinkModal';
-import { getAllLinks, deleteLink as deleteLinkFromDB } from '@/lib/browser-db';
-import { syncFromServerLinks, syncChanges, queueChange } from '@/lib/sync';
 
 interface Link {
   code: string;
@@ -26,30 +24,20 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
 
   const loadLinks = async () => {
     try {
-      // Load from browser DB first (fast)
-      const cachedLinks = await getAllLinks();
-      setLinks(cachedLinks.map(link => ({
-        code: link.code,
-        url: link.url,
-        clicks: link.clicks,
-        created: link.created,
-        updated: link.updated,
-      })));
+      // Fetch user's links from server
+      const response = await fetch('/api/my-links', {
+        headers: { 'x-fingerprint': fingerprint },
+      });
 
-      // Sync from server in background
-      await syncFromServerLinks(fingerprint);
+      if (!response.ok) {
+        throw new Error('Failed to fetch links');
+      }
 
-      // Reload from browser DB (now synced)
-      const syncedLinks = await getAllLinks();
-      setLinks(syncedLinks.map(link => ({
-        code: link.code,
-        url: link.url,
-        clicks: link.clicks,
-        created: link.created,
-        updated: link.updated,
-      })));
+      const data = await response.json();
+      setLinks(data.links || []);
     } catch (err) {
       console.error('Failed to load links:', err);
+      setLinks([]);
     } finally {
       setLoading(false);
     }
@@ -69,15 +57,23 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
     if (!confirm('Delete this link?')) return;
 
     try {
-      // Delete from browser DB immediately (UX)
-      await deleteLinkFromDB(code);
+      // Remove from UI immediately (UX)
       setLinks(links.filter(l => l.code !== code));
 
-      // Queue sync to server
-      queueChange({ type: 'delete', code });
-      await syncChanges(fingerprint);
+      // Delete from server
+      const response = await fetch(`/api/links/${code}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete link');
+      }
     } catch (err) {
       console.error('Failed to delete link:', err);
+      // Reload on error to show actual state
+      loadLinks();
     }
   };
 
