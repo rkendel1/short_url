@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs-pro": "^3.10.0",
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/adapter-pg": "^5.20.0",
+    "@prisma/client": "^5.20.0",
     "@upstash/redis": "^1.38.2",
     "@vercel/kv": "^3.0.0",
     "dotenv": "^17.4.2",
@@ -27,7 +27,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
-    "prisma": "^6.19.3",
+    "prisma": "^5.20.0",
     "tsx": "^4.23.6",
     "typescript": "^5.0.0"
   }
