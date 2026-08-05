@@ -1,8 +1,20 @@
 # Deployment Guide
 
-## Quick Start (Vercel)
+## Architecture
 
-The easiest way to deploy sho.rt is on Vercel, which handles KV database provisioning.
+The app uses a dual-database architecture for optimal UX and reliability:
+
+1. **Backend Storage (Upstash Redis)** - Persistent storage for redirects
+   - Source of truth for all links
+   - Handles redirect requests
+   - Synced from browser cache
+
+2. **Browser Cache (IndexedDB)** - Local cache for UX
+   - Recognized by fingerprint
+   - Shows user's links instantly
+   - Changes synced to backend
+
+## Quick Start (Vercel)
 
 ### 1. Create Vercel Project
 ```bash
@@ -12,21 +24,18 @@ vercel login
 vercel
 ```
 
-### 2. Set Up KV Database
-In Vercel Dashboard:
-1. Go to Storage → KV Database
-2. Create a new database
-3. Add to your project
-4. Environment variables are auto-populated:
-   - `KV_REST_API_URL` - The REST API endpoint for the KV database
-   - `KV_REST_API_TOKEN` - Authentication token for the KV REST API
-   - `REDIS_URL` - Direct Redis protocol connection string
-   - `KV_URL` - Alternative KV database URL
+### 2. Set Up Upstash Redis
+1. Go to [Upstash Console](https://console.upstash.com)
+2. Create a new Redis database
+3. Copy the REST API credentials
+4. In Vercel dashboard, add environment variables:
+   - `UPSTASH_REDIS_REST_URL` - Your Redis REST URL
+   - `UPSTASH_REDIS_REST_TOKEN` - Your Redis REST token
 
 ### 3. Custom Domain
 Settings → Domains → Add domain
 
-Set your custom domain and update `BASE_URL` in environment:
+Set your custom domain and update `BASE_URL` in environment variables:
 ```
 BASE_URL=https://yourdomain.com
 ```
@@ -41,7 +50,7 @@ vercel --prod
 
 ## Manual Deployment
 
-### Node.js + Redis/KV Compatible Database
+### Node.js + Upstash Redis
 
 1. Build:
 ```bash
@@ -55,30 +64,21 @@ npm run build
 npm start
 ```
 
-Ensure `KV_REST_API_URL` and `KV_REST_API_TOKEN` are set.
-
 ### Environment Variables
 
-**Required (for KV/Redis):**
+**Required (Redis Backend):**
 ```bash
-# Primary KV REST API (used by @vercel/kv library)
-KV_REST_API_URL=https://... # Auto-populated by Vercel
-KV_REST_API_TOKEN=... # Auto-populated by Vercel
-```
-
-**Optional (auto-populated by Vercel when Redis is integrated):**
-```bash
-REDIS_URL=... # Direct Redis protocol URL
-KV_URL=... # Alternative KV database URL
+UPSTASH_REDIS_REST_URL=https://...  # Your Upstash Redis REST URL
+UPSTASH_REDIS_REST_TOKEN=...        # Your Upstash Redis token
 ```
 
 **Application Configuration:**
 ```bash
-BASE_URL=https://sho.rt # Your custom domain
+BASE_URL=https://sho.rt # Your custom domain (optional)
 NODE_ENV=production
 ```
 
-**Note:** When deploying on Vercel with KV database integration, Vercel automatically populates `KV_REST_API_URL` and `KV_REST_API_TOKEN`. The `@vercel/kv` library uses these variables to connect to your Redis database.
+**Note:** Upstash Redis provides persistent, serverless Redis storage. Perfect for Vercel deployments with no additional infrastructure.
 
 ## Docker
 
@@ -94,7 +94,7 @@ CMD ["npm", "start"]
 Build and run:
 ```bash
 docker build -t short-url .
-docker run -e KV_REST_API_URL -e KV_REST_API_TOKEN -p 3000:3000 short-url
+docker run -p 3000:3000 short-url
 ```
 
 ## Monitoring
@@ -117,44 +117,61 @@ module.exports = withSentry({
 });
 ```
 
-## Database Maintenance
+## Database
 
-### Viewing Data (Vercel KV)
-Vercel CLI:
-```bash
-vercel kv ls  # List all keys
-vercel kv get url:PROMO  # Get specific key
+### Data Model (PGlite)
+
+```sql
+-- Links table
+CREATE TABLE links (
+  code VARCHAR(20) PRIMARY KEY,
+  url TEXT NOT NULL,
+  clicks INTEGER DEFAULT 0,
+  created INTEGER NOT NULL,
+  updated INTEGER,
+  last INTEGER,
+  owner VARCHAR(32) NOT NULL
+);
+
+-- User links association
+CREATE TABLE user_links (
+  fingerprint VARCHAR(32) NOT NULL,
+  code VARCHAR(20) NOT NULL,
+  PRIMARY KEY (fingerprint, code),
+  FOREIGN KEY (code) REFERENCES links(code) ON DELETE CASCADE
+);
 ```
 
-### Backup
-KV data is automatically backed up by Vercel. For manual export:
-```bash
-# Via Vercel dashboard Export feature (if available)
-# Or write a migration script
-```
+**Key Structure:**
+- `url:{shortCode}` → destination URL
+- `clicks:{shortCode}` → click counter
+- `created:{shortCode}` → Unix timestamp (creation)
+- `updated:{shortCode}` → Unix timestamp (last destination change)
+- `last:{shortCode}` → Unix timestamp (last click)
+- `owner:{shortCode}` → fingerprint hash
+- `user:{fingerprint}` → set of short codes belonging to this fingerprint
 
 ## Scaling
 
-Vercel KV automatically scales. For very high traffic:
-- Consider Redis Pro tier
+PGlite is suitable for small to medium traffic. For very high traffic:
+- Migrate to PostgreSQL with connection pooling
 - Implement caching headers for redirects
 - Rate limit by fingerprint if needed
 
 ## Cost
 
 - Vercel Edge Functions: Free tier included
-- KV Database: Pricing based on read/write operations
+- Database: No cost (PGlite is embedded)
 - Custom domain: $12/month (Vercel)
 
 ## Troubleshooting
 
 ### 503 Errors
-- Check KV database status in Vercel dashboard
-- Verify environment variables are set
-- Check Vercel logs: `vercel logs`
+- Check application logs: `vercel logs`
+- Ensure Node.js environment is configured correctly
 
 ### Redirects Not Working
-- Verify `url:{code}` exists in KV
+- Verify `code` exists in database
 - Check if code is case-sensitive
 - Test via `/api/links/CODE` to debug
 
@@ -163,9 +180,13 @@ Vercel KV automatically scales. For very high traffic:
 - Check browser console for errors
 - Test in incognito mode
 
+### Database Issues
+- PGlite stores data in application memory
+- Data persists within a single Vercel deployment
+- For persistent data across deployments, migrate to external PostgreSQL
+
 ## Security Checklist
 
-- [ ] Set strong KV token (rotate if exposed)
 - [ ] Enable HTTPS (automatic on Vercel)
 - [ ] Set custom domain for branding
 - [ ] Review environment variables (no secrets in code)
@@ -177,6 +198,6 @@ Vercel KV automatically scales. For very high traffic:
 
 For issues:
 1. Check Vercel status page
-2. Review error logs
+2. Review error logs: `vercel logs`
 3. Test endpoints manually: `curl https://sho.rt/api/links/test`
 4. Open issue on GitHub

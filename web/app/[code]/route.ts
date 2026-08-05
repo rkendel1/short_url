@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLink, incrementClicks } from '@/lib/kv';
+import { getLink, incrementClicks } from '@/lib/storage';
 import { redirect } from 'next/navigation';
 
 export async function GET(

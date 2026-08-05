@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateBase62, isValidBase62 } from '@/lib/base62';
-import { createLink, codeExists } from '@/lib/kv';
+import { createLink, codeExists } from '@/lib/storage';
 
 const MAX_RETRIES = 5;
 const BASE_URL = process.env.BASE_URL || 'https://sho.rt';

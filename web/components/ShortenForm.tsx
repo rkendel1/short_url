@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { QRCodeDisplay } from './QRCodeDisplay';
 import { EditLinkModal } from './EditLinkModal';
+import { saveLink } from '@/lib/browser-db';
+import { queueChange, syncChanges } from '@/lib/sync';
 
 interface ShortenFormProps {
   fingerprint: string;
@@ -30,6 +32,18 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
     setCopied(false);
 
     try {
+      const now = Math.floor(Date.now() / 1000);
+
+      // Save to browser DB first (optimistic update)
+      const link = {
+        code: customCode || `temp-${Date.now()}`,
+        url,
+        clicks: 0,
+        created: now,
+      };
+      await saveLink(link);
+
+      // Send to backend
       const response = await fetch('/api/shorten', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -47,6 +61,24 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
       }
 
       const data = await response.json();
+
+      // Update browser DB with actual code from server
+      if (data.shortCode && data.shortCode !== link.code) {
+        await saveLink({
+          ...link,
+          code: data.shortCode,
+        });
+      }
+
+      // Queue sync to ensure it's on backend
+      queueChange({
+        type: 'create',
+        code: data.shortCode,
+        url,
+        pin: pin || undefined,
+      });
+      await syncChanges(fingerprint);
+
       setResult(data);
       setUrl('');
       setCustomCode('');
