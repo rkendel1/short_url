@@ -97,7 +97,18 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
       <div className="links-section">
         <h2>My Links</h2>
         <div className="empty-state">
-          <p>No links created yet. Create one above!</p>
+          <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔗</div>
+            <h3 style={{ fontSize: '18px', marginBottom: '8px', fontWeight: '600' }}>
+              No links yet
+            </h3>
+            <p style={{ color: '#666', marginBottom: '20px', lineHeight: '1.5' }}>
+              Create your first short link above to get started.
+            </p>
+            <p style={{ fontSize: '13px', color: '#999' }}>
+              Your links will appear here and be linked to your device.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -122,7 +133,7 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
               onClick={() =>
                 handleCopy(
                   link.code,
-                  `https://sho.rt/${link.code}`
+                  `https://0-2.ca/${link.code}`
                 )
               }
             >
