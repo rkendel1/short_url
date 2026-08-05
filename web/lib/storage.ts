@@ -14,12 +14,12 @@ let redis: Redis | null = null;
 
 function getRedis(): Redis {
   if (!redis) {
-    const url = process.env.UPSTASH_REDIS_REST_URL;
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const url = process.env.KV_REST_API_URL;
+    const token = process.env.KV_REST_API_TOKEN;
 
     if (!url || !token) {
       throw new Error(
-        'Missing Upstash Redis configuration. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.'
+        'Missing Vercel KV/Redis configuration. Ensure KV_REST_API_URL and KV_REST_API_TOKEN are set from your Vercel integration.'
       );
     }
 
