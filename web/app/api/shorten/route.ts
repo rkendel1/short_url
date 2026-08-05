@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateBase62, isValidBase62 } from '@/lib/base62';
+import { generateMemorable, isValidBase62 } from '@/lib/base62';
 import { createLink, codeExists } from '@/lib/storage';
 
 const MAX_RETRIES = 5;
@@ -17,7 +17,7 @@ async function findAvailableCode(customCode?: string): Promise<string> {
   }
 
   for (let i = 0; i < MAX_RETRIES; i++) {
-    const code = generateBase62(6);
+    const code = generateMemorable();
     if (!(await codeExists(code))) {
       return code;
     }
