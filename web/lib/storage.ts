@@ -51,9 +51,19 @@ export async function incrementClicks(code: string): Promise<void> {
 }
 
 export async function getLinkData(code: string): Promise<LinkData | null> {
-  return await prisma.link.findUnique({
+  const link = await prisma.link.findUnique({
     where: { code },
   });
+  if (!link) return null;
+  return {
+    code: link.code,
+    url: link.url,
+    clicks: link.clicks,
+    created: link.created,
+    updated: link.updated || undefined,
+    last: link.last || undefined,
+    owner: link.owner,
+  };
 }
 
 export async function updateLinkUrl(
