@@ -49,7 +49,7 @@ export async function createLink(
 
 export async function getLink(code: string): Promise<string | null> {
   const db = getRedis();
-  const url = await db.get<string>(`url:${code}`);
+  const url = await db.get(`url:${code}`) as string | null;
   return url || null;
 }
 
@@ -66,12 +66,12 @@ export async function incrementClicks(code: string): Promise<void> {
 export async function getLinkData(code: string): Promise<LinkData | null> {
   const db = getRedis();
   const [url, clicks, created, owner, updated, last] = await Promise.all([
-    db.get<string>(`url:${code}`),
-    db.get<number>(`clicks:${code}`),
-    db.get<number>(`created:${code}`),
-    db.get<string>(`owner:${code}`),
-    db.get<number>(`updated:${code}`),
-    db.get<number>(`last:${code}`),
+    db.get(`url:${code}`) as Promise<string | null>,
+    db.get(`clicks:${code}`) as Promise<number | null>,
+    db.get(`created:${code}`) as Promise<number | null>,
+    db.get(`owner:${code}`) as Promise<string | null>,
+    db.get(`updated:${code}`) as Promise<number | null>,
+    db.get(`last:${code}`) as Promise<number | null>,
   ]);
 
   if (!url || !created || !owner) return null;
@@ -95,8 +95,8 @@ export async function updateLinkUrl(
 ): Promise<boolean> {
   const db = getRedis();
   const [owner, storedPin] = await Promise.all([
-    db.get<string>(`owner:${code}`),
-    db.get<string>(`pin:${code}`),
+    db.get(`owner:${code}`) as Promise<string | null>,
+    db.get(`pin:${code}`) as Promise<string | null>,
   ]);
 
   if (owner !== fingerprint) return false;
@@ -113,7 +113,7 @@ export async function updateLinkUrl(
 
 export async function getUserLinks(fingerprint: string): Promise<string[]> {
   const db = getRedis();
-  const codes = await db.smembers<string>(`user:${fingerprint}`);
+  const codes = await db.smembers(`user:${fingerprint}`) as Promise<string[]>;
   return codes || [];
 }
 
