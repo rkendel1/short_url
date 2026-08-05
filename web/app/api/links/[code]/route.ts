@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateLinkUrl, getLinkData, getDb } from '@/lib/db';
+import { updateLinkUrl, getLinkData, deleteLink } from '@/lib/storage';
 
 export async function GET(
   request: NextRequest,
@@ -106,11 +106,7 @@ export async function DELETE(
       );
     }
 
-    const dbInstance = await getDb();
-    await dbInstance.exec(
-      `DELETE FROM links WHERE code = $1`,
-      [code]
-    );
+    await deleteLink(code);
 
     return NextResponse.json({ success: true });
   } catch (error) {

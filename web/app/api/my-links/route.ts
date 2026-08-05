@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserLinks, getLinkData } from '@/lib/db';
+import { getUserLinks, getLinkData } from '@/lib/storage';
 
 export async function GET(request: NextRequest) {
   try {

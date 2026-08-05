@@ -1,8 +1,20 @@
 # Deployment Guide
 
-## Quick Start (Vercel)
+## Architecture
 
-The easiest way to deploy sho.rt is on Vercel. The app uses PGlite (PostgreSQL-compatible database) which runs entirely within Node.js with no external database required.
+The app uses a dual-database architecture for optimal UX and reliability:
+
+1. **Backend Storage (Upstash Redis)** - Persistent storage for redirects
+   - Source of truth for all links
+   - Handles redirect requests
+   - Synced from browser cache
+
+2. **Browser Cache (IndexedDB)** - Local cache for UX
+   - Recognized by fingerprint
+   - Shows user's links instantly
+   - Changes synced to backend
+
+## Quick Start (Vercel)
 
 ### 1. Create Vercel Project
 ```bash
@@ -12,8 +24,13 @@ vercel login
 vercel
 ```
 
-### 2. Deploy
-That's it! No database setup needed. PGlite is embedded in the application.
+### 2. Set Up Upstash Redis
+1. Go to [Upstash Console](https://console.upstash.com)
+2. Create a new Redis database
+3. Copy the REST API credentials
+4. In Vercel dashboard, add environment variables:
+   - `UPSTASH_REDIS_REST_URL` - Your Redis REST URL
+   - `UPSTASH_REDIS_REST_TOKEN` - Your Redis REST token
 
 ### 3. Custom Domain
 Settings → Domains → Add domain
@@ -33,7 +50,7 @@ vercel --prod
 
 ## Manual Deployment
 
-### Node.js + PGlite
+### Node.js + Upstash Redis
 
 1. Build:
 ```bash
@@ -47,9 +64,13 @@ npm run build
 npm start
 ```
 
-No environment variables required for the database. PGlite works out of the box.
-
 ### Environment Variables
+
+**Required (Redis Backend):**
+```bash
+UPSTASH_REDIS_REST_URL=https://...  # Your Upstash Redis REST URL
+UPSTASH_REDIS_REST_TOKEN=...        # Your Upstash Redis token
+```
 
 **Application Configuration:**
 ```bash
@@ -57,7 +78,7 @@ BASE_URL=https://sho.rt # Your custom domain (optional)
 NODE_ENV=production
 ```
 
-**Note:** PGlite is a PostgreSQL-compatible database that runs entirely within Node.js. No external database setup is required.
+**Note:** Upstash Redis provides persistent, serverless Redis storage. Perfect for Vercel deployments with no additional infrastructure.
 
 ## Docker
 
