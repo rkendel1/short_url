@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
             const data = await Promise.race([
               getLinkData(code),
               timeoutPromise,
-            ]);
+            ]) as any;
             if (!data) return null;
             return {
               code,
