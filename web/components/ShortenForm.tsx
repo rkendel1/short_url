@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { QRCodeDisplay } from './QRCodeDisplay';
 import { EditLinkModal } from './EditLinkModal';
-import { saveLink, getLink as getLinkFromDB } from '@/lib/browser-db';
-import { queueChange, syncChanges } from '@/lib/sync';
 
 const NOUNS = [
   'panda', 'eagle', 'tiger', 'shark', 'falcon', 'whale', 'otter', 'deer',
@@ -19,29 +17,6 @@ function generateMemorable(): string {
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
   const num = Math.floor(Math.random() * 100).toString().padStart(2, '0');
   return `${noun}${num}`;
-}
-
-async function findLocalUniqueCode(maxRetries: number = 5): Promise<string> {
-  try {
-    for (let i = 0; i < maxRetries; i++) {
-      const code = generateMemorable();
-      try {
-        const existing = await getLinkFromDB(code);
-        if (!existing) {
-          return code;
-        }
-      } catch {
-        // If local DB fails, just return the code anyway
-        // Server will validate before storing
-        return code;
-      }
-    }
-  } catch (err) {
-    // If local DB is unavailable, just generate and trust server validation
-  }
-
-  // Fallback: just generate a code without checking locally
-  return generateMemorable();
 }
 
 interface ShortenFormProps {
@@ -70,19 +45,8 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
     setCopied(false);
 
     try {
-      const now = Math.floor(Date.now() / 1000);
-
-      // Generate unique code locally (instant)
-      const code = customCode || await findLocalUniqueCode();
-
-      // Save to browser DB first (optimistic update)
-      const link = {
-        code,
-        url,
-        clicks: 0,
-        created: now,
-      };
-      await saveLink(link);
+      // Generate code locally (instant, no DB needed)
+      const code = customCode || generateMemorable();
 
       // Send to backend with the pre-generated code
       const response = await fetch('/api/shorten', {
@@ -102,15 +66,6 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
       }
 
       const data = await response.json();
-
-      // Queue sync to ensure it's on backend
-      queueChange({
-        type: 'create',
-        code: data.shortCode,
-        url,
-        pin: pin || undefined,
-      });
-      await syncChanges(fingerprint);
 
       setResult(data);
       setUrl('');
