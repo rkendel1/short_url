@@ -3,7 +3,7 @@ import { generateBase62, isValidBase62 } from '@/lib/base62';
 import { createLink, codeExists } from '@/lib/storage';
 
 const MAX_RETRIES = 5;
-const BASE_URL = process.env.BASE_URL || 'https://sho.rt';
+const BASE_URL = process.env.BASE_URL || 'https://url-alpha-ten.vercel.app';
 
 async function findAvailableCode(customCode?: string): Promise<string> {
   if (customCode) {
