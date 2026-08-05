@@ -12,30 +12,52 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const codes = await getUserLinks(fingerprint);
-
-    const links = await Promise.all(
-      codes.map(async (code) => {
-        const data = await getLinkData(code);
-        if (!data) return null;
-        return {
-          code,
-          url: data.url,
-          clicks: data.clicks,
-          created: data.created,
-          updated: data.updated,
-          last: data.last,
-        };
-      })
+    // Use timeout to prevent hanging on KV queries
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout')), 10000)
     );
 
-    return NextResponse.json({
-      links: links.filter((link) => link !== null),
-    });
+    try {
+      const codes = await Promise.race([
+        getUserLinks(fingerprint),
+        timeoutPromise,
+      ]) as string[];
+
+      if (codes.length === 0) {
+        return NextResponse.json({ links: [] });
+      }
+
+      const links = await Promise.all(
+        codes.map(async (code) => {
+          try {
+            const data = await Promise.race([
+              getLinkData(code),
+              timeoutPromise,
+            ]);
+            if (!data) return null;
+            return {
+              code,
+              url: data.url,
+              clicks: data.clicks,
+              created: data.created,
+              updated: data.updated,
+              last: data.last,
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      return NextResponse.json({
+        links: links.filter((link) => link !== null),
+      });
+    } catch (timeoutError) {
+      // Return empty on timeout instead of hanging
+      return NextResponse.json({ links: [] });
+    }
   } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to fetch links' },
-      { status: 500 }
-    );
+    // Return empty on error instead of 500
+    return NextResponse.json({ links: [] });
   }
 }

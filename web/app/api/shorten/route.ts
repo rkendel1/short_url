@@ -46,14 +46,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const shortCode = await findAvailableCode(customCode);
-    await createLink(shortCode, url, fingerprint, pin);
+    // Use timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout creating link')), 10000)
+    );
 
-    return NextResponse.json({
-      shortCode,
-      shortUrl: `${BASE_URL}/${shortCode}`,
-      qrUrl: `${BASE_URL}/api/qr?code=${shortCode}`,
-    });
+    try {
+      const shortCode = await Promise.race([
+        findAvailableCode(customCode),
+        timeoutPromise,
+      ]) as string;
+
+      await Promise.race([
+        createLink(shortCode, url, fingerprint, pin),
+        timeoutPromise,
+      ]);
+
+      return NextResponse.json({
+        shortCode,
+        shortUrl: `${BASE_URL}/${shortCode}`,
+        qrUrl: `${BASE_URL}/api/qr?code=${shortCode}`,
+      });
+    } catch (timeoutError) {
+      throw timeoutError;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
