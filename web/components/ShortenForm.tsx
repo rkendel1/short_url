@@ -22,14 +22,26 @@ function generateMemorable(): string {
 }
 
 async function findLocalUniqueCode(maxRetries: number = 5): Promise<string> {
-  for (let i = 0; i < maxRetries; i++) {
-    const code = generateMemorable();
-    const existing = await getLinkFromDB(code);
-    if (!existing) {
-      return code;
+  try {
+    for (let i = 0; i < maxRetries; i++) {
+      const code = generateMemorable();
+      try {
+        const existing = await getLinkFromDB(code);
+        if (!existing) {
+          return code;
+        }
+      } catch {
+        // If local DB fails, just return the code anyway
+        // Server will validate before storing
+        return code;
+      }
     }
+  } catch (err) {
+    // If local DB is unavailable, just generate and trust server validation
   }
-  throw new Error('Unable to generate unique code');
+
+  // Fallback: just generate a code without checking locally
+  return generateMemorable();
 }
 
 interface ShortenFormProps {
