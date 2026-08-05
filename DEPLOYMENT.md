@@ -4,15 +4,17 @@
 
 The app uses a dual-database architecture for optimal UX and reliability:
 
-1. **Backend Storage (Upstash Redis)** - Persistent storage for redirects
+1. **Backend Storage (Vercel KV/Upstash Redis)** - Persistent storage for redirects
    - Source of truth for all links
    - Handles redirect requests
+   - Survives Vercel redeployments
    - Synced from browser cache
 
 2. **Browser Cache (IndexedDB)** - Local cache for UX
    - Recognized by fingerprint
    - Shows user's links instantly
    - Changes synced to backend
+   - Works offline
 
 ## Quick Start (Vercel)
 
@@ -24,13 +26,16 @@ vercel login
 vercel
 ```
 
-### 2. Set Up Upstash Redis
-1. Go to [Upstash Console](https://console.upstash.com)
-2. Create a new Redis database
-3. Copy the REST API credentials
-4. In Vercel dashboard, add environment variables:
-   - `UPSTASH_REDIS_REST_URL` - Your Redis REST URL
-   - `UPSTASH_REDIS_REST_TOKEN` - Your Redis REST token
+### 2. Add Vercel KV Integration
+In Vercel Dashboard:
+1. Go to Storage → KV
+2. Create a new KV database
+3. Add to your project
+4. Environment variables are auto-populated:
+   - `KV_REST_API_URL` - REST API endpoint
+   - `KV_REST_API_TOKEN` - Authentication token
+
+These are automatically available to your app.
 
 ### 3. Custom Domain
 Settings → Domains → Add domain
@@ -50,7 +55,7 @@ vercel --prod
 
 ## Manual Deployment
 
-### Node.js + Upstash Redis
+### Node.js + Vercel KV
 
 1. Build:
 ```bash
@@ -66,10 +71,11 @@ npm start
 
 ### Environment Variables
 
-**Required (Redis Backend):**
+**Required (Vercel KV/Redis Backend):**
+These are auto-populated when you add KV to your Vercel project:
 ```bash
-UPSTASH_REDIS_REST_URL=https://...  # Your Upstash Redis REST URL
-UPSTASH_REDIS_REST_TOKEN=...        # Your Upstash Redis token
+KV_REST_API_URL=https://...  # Vercel KV REST endpoint
+KV_REST_API_TOKEN=...        # Vercel KV authentication token
 ```
 
 **Application Configuration:**
@@ -78,7 +84,7 @@ BASE_URL=https://sho.rt # Your custom domain (optional)
 NODE_ENV=production
 ```
 
-**Note:** Upstash Redis provides persistent, serverless Redis storage. Perfect for Vercel deployments with no additional infrastructure.
+**Note:** Vercel KV (powered by Upstash Redis) provides persistent, serverless Redis storage. Perfect for Vercel deployments. All data persists through redeployments, so links never break.
 
 ## Docker
 
