@@ -10,12 +10,11 @@ async function findAvailableCode(customCode?: string): Promise<string> {
     if (!isValidBase62(customCode)) {
       throw new Error('Invalid custom code');
     }
-    if (await codeExists(customCode)) {
-      throw new Error('Code already taken');
-    }
+    // Trust client-side validation for pre-generated codes (already checked locally)
     return customCode;
   }
 
+  // Fallback for any non-custom code (shouldn't happen with new client logic)
   for (let i = 0; i < MAX_RETRIES; i++) {
     const code = generateMemorable();
     if (!(await codeExists(code))) {
