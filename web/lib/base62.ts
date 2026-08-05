@@ -1,22 +1,18 @@
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
-const ADJECTIVES = [
-  'happy', 'lucky', 'swift', 'bright', 'bold', 'quick', 'smart', 'keen',
-  'agile', 'rapid', 'fresh', 'clean', 'sharp', 'crisp', 'vivid', 'quiet',
-  'gentle', 'strong', 'brave', 'eager', 'witty', 'zippy', 'sleek', 'slick',
-];
-
 const NOUNS = [
   'panda', 'eagle', 'tiger', 'shark', 'falcon', 'whale', 'otter', 'deer',
   'fox', 'wolf', 'raven', 'bear', 'lynx', 'stag', 'elk', 'hare',
   'seal', 'hawk', 'owl', 'dove', 'swan', 'mule', 'gecko', 'newt',
+  'moose', 'emu', 'ibis', 'kite', 'lark', 'newt', 'oryx', 'puma',
+  'quail', 'roach', 'skua', 'tern', 'uakari', 'vole', 'wren', 'yak',
+  'zebra', 'albatross', 'badger', 'coral', 'dolphin', 'emu', 'ferret',
 ];
 
 export function generateMemorable(): string {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(Math.random() * 10000).toString().padStart(3, '0');
-  return `${adj}-${noun}-${num}`;
+  const num = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  return `${noun}${num}`;
 }
 
 export function generateBase62(length: number): string {
