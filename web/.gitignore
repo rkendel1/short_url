@@ -11,3 +11,4 @@ dist
 *.tsbuildinfo
 
 /generated/prisma
+.feltdb/
