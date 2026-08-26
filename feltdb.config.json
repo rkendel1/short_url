@@ -1,0 +1,12 @@
+{
+  "namespace": "short_url",
+  "runtime": "browser",
+  "storage": "indexeddb",
+  "distributed": true,
+  "agents": {
+    "enabled": false
+  },
+  "capabilities": {
+    "search": true
+  }
+}

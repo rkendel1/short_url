@@ -10,3 +10,4 @@ web/out
 web/build
 web/.env.local
 *.log
+.feltdb/
