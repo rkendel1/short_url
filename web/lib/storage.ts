@@ -1,6 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient | null = null;
+
+function getPrisma(): PrismaClient {
+  if (!prisma) {
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
 
 export interface LinkData {
   code: string;
@@ -18,6 +25,7 @@ export async function createLink(
   fingerprint: string,
   pin?: string
 ): Promise<void> {
+  const prisma = getPrisma();
   const now = Math.floor(Date.now() / 1000);
   await prisma.link.create({
     data: {
@@ -32,6 +40,7 @@ export async function createLink(
 }
 
 export async function getLink(code: string): Promise<string | null> {
+  const prisma = getPrisma();
   const link = await prisma.link.findUnique({
     where: { code },
     select: { url: true },
@@ -40,6 +49,7 @@ export async function getLink(code: string): Promise<string | null> {
 }
 
 export async function incrementClicks(code: string): Promise<void> {
+  const prisma = getPrisma();
   const now = Math.floor(Date.now() / 1000);
   await prisma.link.update({
     where: { code },
@@ -51,6 +61,7 @@ export async function incrementClicks(code: string): Promise<void> {
 }
 
 export async function getLinkData(code: string): Promise<LinkData | null> {
+  const prisma = getPrisma();
   const link = await prisma.link.findUnique({
     where: { code },
   });
@@ -72,6 +83,7 @@ export async function updateLinkUrl(
   fingerprint: string,
   pin?: string
 ): Promise<boolean> {
+  const prisma = getPrisma();
   const link = await prisma.link.findUnique({
     where: { code },
     select: { owner: true, pin: true },
@@ -93,6 +105,7 @@ export async function updateLinkUrl(
 }
 
 export async function getUserLinks(fingerprint: string): Promise<string[]> {
+  const prisma = getPrisma();
   const links = await prisma.link.findMany({
     where: { owner: fingerprint },
     select: { code: true },
@@ -101,6 +114,7 @@ export async function getUserLinks(fingerprint: string): Promise<string[]> {
 }
 
 export async function codeExists(code: string): Promise<boolean> {
+  const prisma = getPrisma();
   const link = await prisma.link.findUnique({
     where: { code },
     select: { code: true },
@@ -109,6 +123,7 @@ export async function codeExists(code: string): Promise<boolean> {
 }
 
 export async function deleteLink(code: string): Promise<void> {
+  const prisma = getPrisma();
   await prisma.link.delete({
     where: { code },
   });

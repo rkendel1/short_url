@@ -43,8 +43,8 @@ importers:
         version: 19.2.8(react@19.2.8)
     devDependencies:
       '@feltdb/core':
-        specifier: 0.6.7
-        version: 0.6.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 0.6.8
+        version: 0.6.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
@@ -231,8 +231,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@feltdb/core@0.6.7':
-    resolution: {integrity: sha512-zSd36YSQMWYbThmCWKjtadimjlEYuIaSX7ePB8xfL6MgLZp0bOmQljlaAiK/RDyMDSl5xFkiBC2X3FYbHmICjw==}
+  '@feltdb/core@0.6.8':
+    resolution: {integrity: sha512-e6Q8omkFNCOI53MzoDrCFPVx2tWyGlBnSDeXj4Y45QXHbj1zQydv5VrvUWKgcCJtheJ3rd56pwYkmByLooeYbQ==}
     engines: {node: '>=14'}
     hasBin: true
     peerDependencies:
@@ -913,7 +913,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@feltdb/core@0.6.7(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@feltdb/core@0.6.8(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     optionalDependencies:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)

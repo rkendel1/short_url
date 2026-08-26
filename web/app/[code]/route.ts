@@ -6,18 +6,25 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ code: string }> }
 ) {
-  const { code } = await params;
+  try {
+    const { code } = await params;
 
-  const url = await getLink(code);
+    const url = await getLink(code);
 
-  if (!url) {
+    if (!url) {
+      return NextResponse.json(
+        { error: 'Short link not found' },
+        { status: 404 }
+      );
+    }
+
+    await incrementClicks(code);
+
+    return NextResponse.redirect(url, { status: 301 });
+  } catch {
     return NextResponse.json(
-      { error: 'Short link not found' },
-      { status: 404 }
+      { error: 'Service unavailable' },
+      { status: 503 }
     );
   }
-
-  await incrementClicks(code);
-
-  return NextResponse.redirect(url, { status: 301 });
 }

@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "prisma generate && next dev",
     "build": "prisma migrate deploy && prisma generate && next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "prisma generate && next start",
+    "lint": "next lint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs-pro": "^3.10.0",
@@ -27,7 +28,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
-    "@feltdb/core":"0.6.7",
+    "@feltdb/core":"0.6.8",
     "prisma": "^5.20.0",
     "tsx": "^4.23.6",
     "typescript": "^5.0.0"
