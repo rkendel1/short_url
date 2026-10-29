@@ -96,3 +96,18 @@ Technology
 License
 
 MIT
+
+## Running tests
+
+The web tests run against a real, disposable Postgres database, because they
+exercise transactions, row locks and database triggers. The database name must
+end in `_test`; it is dropped and recreated on every run.
+
+```sh
+docker run -d --name short-url-test-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+cd web
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/short_url_test npm test
+```
+
+Rust CLI: `cargo test`. For schema upgrade notes, see `MIGRATION.md`.
+

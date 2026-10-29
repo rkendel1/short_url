@@ -165,6 +165,29 @@ export async function signChallenge(challenge: string): Promise<string | null> {
 }
 
 /**
+ * Ensures this browser has a signing key pair and returns its public key.
+ * Identities created before request signing (an 'fp' with no key) get a new
+ * key; the server binds it to the existing owner on first use.
+ */
+export async function ensureSigningKey(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const existingPublicKey = localStorage.getItem(STORAGE_KEYS.PUBLIC_KEY);
+    if (existingPublicKey && (await getPrivateKey())) {
+      return existingPublicKey;
+    }
+    const keyPair = await generateKeyPair();
+    await storePrivateKey(keyPair.privateKey);
+    const publicKeyHex = await exportPublicKey(keyPair.publicKey);
+    localStorage.setItem(STORAGE_KEYS.PUBLIC_KEY, publicKeyHex);
+    return publicKeyHex;
+  } catch (error) {
+    console.error('Failed to prepare signing key:', error);
+    return null;
+  }
+}
+
+/**
  * Verifies a signature using the stored public key
  */
 export async function verifySignature(

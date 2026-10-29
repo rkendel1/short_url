@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { EditLinkModal } from './EditLinkModal';
+import { signedFetch } from '@/lib/signed-fetch';
 
 interface Link {
   code: string;
@@ -9,6 +10,8 @@ interface Link {
   clicks: number;
   created: number;
   updated?: number;
+  revision: number;
+  protected: boolean;
 }
 
 interface MyLinksProps {
@@ -53,25 +56,28 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const handleDelete = async (code: string) => {
-    if (!confirm('Delete this link?')) return;
+  const handleDelete = async (link: Link) => {
+    if (!confirm('Delete this link? Its code can never be reused.')) return;
+
+    let pin: string | undefined;
+    if (link.protected) {
+      pin = prompt('This link is PIN-protected. Enter its PIN to delete it:') ?? undefined;
+      if (!pin) return;
+    }
 
     try {
-      // Remove from UI immediately (UX)
-      setLinks(links.filter(l => l.code !== code));
-
-      // Delete from server
-      const response = await fetch(`/api/links/${code}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fingerprint }),
+      const response = await signedFetch(fingerprint, 'DELETE', `/api/links/${link.code}`, {
+        revision: link.revision,
+        pin,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete link');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete link');
       }
+      setLinks(links.filter((l) => l.code !== link.code));
     } catch (err) {
-      console.error('Failed to delete link:', err);
+      alert(err instanceof Error ? err.message : 'Failed to delete link');
       // Reload on error to show actual state
       loadLinks();
     }
@@ -147,7 +153,7 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
             </button>
             <button
               className="secondary danger"
-              onClick={() => handleDelete(link.code)}
+              onClick={() => handleDelete(link)}
             >
               🗑️ Delete
             </button>
@@ -159,6 +165,7 @@ export function MyLinks({ fingerprint, refresh }: MyLinksProps) {
         <EditLinkModal
           code={editingCode}
           currentUrl={links.find((l) => l.code === editingCode)?.url || ''}
+          revision={links.find((l) => l.code === editingCode)?.revision ?? 1}
           fingerprint={fingerprint}
           onClose={() => setEditingCode(null)}
           onUpdate={() => {
