@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { signedFetch } from '@/lib/signed-fetch';
 
 interface EditLinkModalProps {
   code: string;
   currentUrl: string;
+  revision: number;
   fingerprint: string;
   onClose: () => void;
   onUpdate: () => void;
@@ -13,6 +15,7 @@ interface EditLinkModalProps {
 export function EditLinkModal({
   code,
   currentUrl,
+  revision,
   fingerprint,
   onClose,
   onUpdate,
@@ -28,18 +31,17 @@ export function EditLinkModal({
     setError('');
 
     try {
-      const response = await fetch(`/api/links/${code}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: newUrl,
-          fingerprint,
-          pin: pin || undefined,
-        }),
+      const response = await signedFetch(fingerprint, 'PATCH', `/api/links/${code}`, {
+        url: newUrl,
+        revision,
+        pin: pin || undefined,
       });
 
       if (!response.ok) {
         const data = await response.json();
+        if (response.status === 409) {
+          throw new Error('This link was changed elsewhere. Close and reopen it to edit the latest version.');
+        }
         throw new Error(data.error || 'Failed to update');
       }
 

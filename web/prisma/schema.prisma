@@ -8,15 +8,52 @@ generator client {
 }
 
 model Link {
-  code      String    @id @unique
+  code      String         @id @unique
   url       String
-  clicks    Int       @default(0)
+  clicks    Int            @default(0)
   created   Int
   updated   Int?
   last      Int?
   owner     String
+  // Legacy plaintext PIN. Never written by current code; cleared when the PIN
+  // is next verified or by scripts/hash-legacy-pins.ts. Drop once empty.
   pin       String?
+  pinHash   String?
+  revision  Int            @default(1)
+  // Tombstone: a deleted code keeps its row so it can never be reclaimed.
+  deleted   Int?
+  history   LinkRevision[]
 
   @@index([owner])
   @@index([created])
+}
+
+// Append-only (enforced by a trigger): one row per destination change.
+model LinkRevision {
+  code      String
+  revision  Int
+  action    String // baseline | create | update | delete
+  urlBefore String?
+  urlAfter  String?
+  actor     String
+  at        Int
+  link      Link    @relation(fields: [code], references: [code], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([code, revision])
+}
+
+// Binds an owner identifier to the public key that must sign its mutations.
+model OwnerKey {
+  owner     String @id
+  publicKey String
+  keyId     String
+  created   Int
+}
+
+model RateLimit {
+  key    String
+  window Int
+  count  Int    @default(0)
+
+  @@id([key, window])
 }

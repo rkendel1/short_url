@@ -1,80 +1,57 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generateMemorable, isValidBase62 } from '@/lib/base62';
-import { createLink, codeExists } from '@/lib/storage';
+import { NextRequest } from 'next/server';
+import { isValidBase62 } from '@/lib/base62';
+import { CodeTakenError, createLink, createLinkWithGeneratedCode } from '@/lib/storage';
+import { authenticate } from '@/lib/auth';
+import { hashPin } from '@/lib/pin';
+import { clientIp, consume, LIMITS } from '@/lib/rate-limit';
+import { error, json, readJsonBody, tooManyRequests } from '@/lib/http';
+import { checkDestination, parsePin } from '@/lib/validation';
 
-const MAX_RETRIES = 5;
 const BASE_URL = process.env.BASE_URL || 'https://0-2.ca';
-
-async function findAvailableCode(customCode?: string): Promise<string> {
-  if (customCode) {
-    if (!isValidBase62(customCode)) {
-      throw new Error('Invalid custom code');
-    }
-    // Trust client-side validation for pre-generated codes (already checked locally)
-    return customCode;
-  }
-
-  // Fallback for any non-custom code (shouldn't happen with new client logic)
-  for (let i = 0; i < MAX_RETRIES; i++) {
-    const code = generateMemorable();
-    if (!(await codeExists(code))) {
-      return code;
-    }
-  }
-
-  throw new Error('Unable to generate unique code');
-}
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { url, customCode, fingerprint, pin } = body;
+    const limited = await consume(`create:${clientIp(request)}`, LIMITS.create);
+    if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
-    if (!url || !fingerprint) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    const parsed = await readJsonBody(request);
+    if (!parsed.ok) return error(400, 'Request body must be a JSON object');
+    const auth = await authenticate(request, parsed.raw);
+    if (!auth.ok) return error(auth.status, auth.error);
+
+    const { url, customCode, pin } = parsed.body;
+    const destination = checkDestination(url);
+    if (!destination.ok) return error(400, destination.error);
+    const checkedPin = parsePin(pin);
+    if (!checkedPin.ok) return error(400, checkedPin.error);
+    if (customCode !== undefined && (typeof customCode !== 'string' || !isValidBase62(customCode))) {
+      return error(400, 'Custom code must be 1-20 letters or digits');
     }
 
-    try {
-      new URL(url);
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid URL' },
-        { status: 400 }
-      );
+    const link = {
+      url: destination.value,
+      owner: auth.owner,
+      actor: auth.actor,
+      pinHash: checkedPin.value === undefined ? undefined : await hashPin(checkedPin.value),
+    };
+
+    let shortCode: string;
+    if (customCode !== undefined) {
+      shortCode = customCode;
+      await createLink(shortCode, link);
+    } else {
+      shortCode = await createLinkWithGeneratedCode(link);
     }
 
-    // Use timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout creating link')), 10000)
-    );
-
-    try {
-      const shortCode = await Promise.race([
-        findAvailableCode(customCode),
-        timeoutPromise,
-      ]) as string;
-
-      await Promise.race([
-        createLink(shortCode, url, fingerprint, pin),
-        timeoutPromise,
-      ]);
-
-      return NextResponse.json({
-        shortCode,
-        shortUrl: `${BASE_URL}/${shortCode}`,
-        qrUrl: `${BASE_URL}/api/qr?code=${shortCode}`,
-      });
-    } catch (timeoutError) {
-      throw timeoutError;
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { error: message },
-      { status: 400 }
-    );
+    return json({
+      shortCode,
+      shortUrl: `${BASE_URL}/${shortCode}`,
+      qrUrl: `${BASE_URL}/api/qr?code=${shortCode}`,
+      revision: 1,
+    });
+  } catch (err) {
+    if (err instanceof CodeTakenError) return error(409, err.message);
+    console.error('create failed', err);
+    return error(500, 'Failed to create link');
   }
 }

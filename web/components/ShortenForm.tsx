@@ -2,22 +2,7 @@
 
 import { useState } from 'react';
 import { QRCodeDisplay } from './QRCodeDisplay';
-import { EditLinkModal } from './EditLinkModal';
-
-const NOUNS = [
-  'panda', 'eagle', 'tiger', 'shark', 'falcon', 'whale', 'otter', 'deer',
-  'fox', 'wolf', 'raven', 'bear', 'lynx', 'stag', 'elk', 'hare',
-  'seal', 'hawk', 'owl', 'dove', 'swan', 'mule', 'gecko', 'newt',
-  'moose', 'emu', 'ibis', 'kite', 'lark', 'oryx', 'puma',
-  'quail', 'roach', 'skua', 'tern', 'uakari', 'vole', 'wren', 'yak',
-  'zebra', 'albatross', 'badger', 'coral', 'dolphin', 'ferret',
-];
-
-function generateMemorable(): string {
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-  return `${noun}${num}`;
-}
+import { signedFetch } from '@/lib/signed-fetch';
 
 interface ShortenFormProps {
   fingerprint: string;
@@ -45,19 +30,11 @@ export function ShortenForm({ fingerprint, onLinkCreated }: ShortenFormProps) {
     setCopied(false);
 
     try {
-      // Generate code locally (instant, no DB needed)
-      const code = customCode || generateMemorable();
-
-      // Send to backend with the pre-generated code
-      const response = await fetch('/api/shorten', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          customCode: code,
-          fingerprint,
-          pin: pin || undefined,
-        }),
+      // The server generates a code when none is given.
+      const response = await signedFetch(fingerprint, 'POST', '/api/shorten', {
+        url,
+        customCode: customCode || undefined,
+        pin: pin || undefined,
       });
 
       if (!response.ok) {

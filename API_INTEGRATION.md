@@ -7,66 +7,112 @@ origin in your application rather than hard-coding it:
 SHORT_URL_BASE_URL=https://0-2.ca
 ```
 
-All JSON requests should include `Content-Type: application/json`. There is no
-API key, bearer token, cookie, or login flow in the current API.
+All JSON requests should include `Content-Type: application/json`. Every
+response carries `Cache-Control: no-store`.
 
 ## Authentication and ownership
 
-The API uses a caller-provided `fingerprint` string as the link owner ID. Use one
-stable, high-entropy value for the integrating application, keep it private, and
-reuse it for create, list, update, and delete operations.
+A link is owned by an **owner identifier** (16–128 characters of
+`[A-Za-z0-9_-]`) and every mutation — create, update and delete — must be
+**signed** by the P-256 key bound to that owner.
 
-For a server-to-server integration, generate it once and store it as a secret,
-for example:
+1. Generate an owner identifier and an ECDSA P-256 key pair once, and keep the
+   private key secret.
+2. Sign each mutation as described below. The first signed request for an
+   owner binds its public key to that owner. From then on, only requests signed
+   by that key are accepted for the owner; any other key gets `403`.
 
-```sh
-openssl rand -hex 32
-```
+| Operation | Authentication |
+| --- | --- |
+| Create | Signed request |
+| Update | Signed request, plus `pin` if the link has one |
+| Delete | Signed request, plus `pin` if the link has one |
+| List owned links | `X-Fingerprint: <owner identifier>` header (read-only) |
+| Get metadata / follow short URL | Public |
+
+### Signing a request
+
+Send these headers:
+
+| Header | Value |
+| --- | --- |
+| `X-Owner` | Owner identifier |
+| `X-Owner-Key` | Public key, DER-encoded SubjectPublicKeyInfo, hex |
+| `X-Owner-Timestamp` | Current time in Unix **milliseconds**; must be within 5 minutes of the server clock |
+| `X-Owner-Signature` | ECDSA P-256 / SHA-256 signature, raw `r‖s` (64 bytes), hex |
+
+The signed message is these five lines joined by `\n`:
 
 ```text
-SHORT_URL_FINGERPRINT=<the generated value>
+short-url-auth-v1
+<HTTP method, upper case>
+<request path, e.g. /api/links/article123>
+<X-Owner-Timestamp value>
+<hex SHA-256 of the exact request body bytes>
 ```
 
-The value is transported differently by endpoint:
+Node.js example:
 
-| Operation | Authentication format |
-| --- | --- |
-| Create | `fingerprint` in the JSON body |
-| List owned links | `X-Fingerprint` request header |
-| Update | `fingerprint` in the JSON body, plus `pin` if the link has one |
-| Delete | `fingerprint` in the JSON body |
-| Get metadata / follow short URL | Public; no authentication |
+```ts
+import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 
-Important: this is an ownership token, not cryptographically verified
-authentication. The server currently accepts the supplied value without a
-signature or API-key check. Anyone who obtains it can manage links owned by it.
-Use HTTPS, never expose a server integration's fingerprint to browser clients,
-and do not log it. The optional PIN only adds a check when updating a link; it
-does not protect listing or deletion.
+// One-time setup:
+//   const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+//   privateKey.export({ format: 'pem', type: 'pkcs8' })  -> SHORT_URL_PRIVATE_KEY
+//   randomBytes(16).toString('hex')                      -> SHORT_URL_OWNER
+const privateKey = createPrivateKey(process.env.SHORT_URL_PRIVATE_KEY!);
+const publicKeyHex = createPublicKey(privateKey).export({ format: 'der', type: 'spki' }).toString('hex');
+
+export async function signedFetch(method: 'POST' | 'PATCH' | 'DELETE', path: string, body: object) {
+  const raw = JSON.stringify(body);
+  const timestamp = String(Date.now());
+  const bodyHash = createHash('sha256').update(raw).digest('hex');
+  const message = ['short-url-auth-v1', method, path, timestamp, bodyHash].join('\n');
+  const signature = sign('sha256', Buffer.from(message), { key: privateKey, dsaEncoding: 'ieee-p1363' });
+  return fetch(`${process.env.SHORT_URL_BASE_URL}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Owner': process.env.SHORT_URL_OWNER!,
+      'X-Owner-Key': publicKeyHex,
+      'X-Owner-Timestamp': timestamp,
+      'X-Owner-Signature': signature.toString('hex'),
+    },
+    body: raw,
+  });
+}
+```
+
+Browsers sign with WebCrypto (`crypto.subtle.sign({ name: 'ECDSA', hash:
+'SHA-256' }, ...)` produces the raw `r‖s` format directly); see
+`web/lib/signed-fetch.ts`. The CLI signs with the `p256` crate; see `src/main.rs`.
+
+**Migrating an existing integration:** if you used a `fingerprint` value before
+signed requests, use that same value as `X-Owner` and sign with a new key. The
+first signed request binds the key to your existing links. Until you do, anyone
+who knows your old fingerprint could bind their key first, so migrate promptly
+and keep the fingerprint secret until then.
+
+Unsigned requests, including the old `fingerprint`-in-body form, return `401`.
 
 ## Create a short link
 
 ```http
-POST /api/shorten HTTP/1.1
-Host: 0-2.ca
-Content-Type: application/json
+POST /api/shorten
+(signed headers)
 
 {
   "url": "https://example.com/articles/123",
-  "fingerprint": "YOUR_STABLE_SECRET_OWNER_ID",
   "customCode": "article123",
-  "pin": "optional-update-pin"
+  "pin": "optional-pin"
 }
 ```
 
-Fields:
-
 | Field | Required | Description |
 | --- | --- | --- |
-| `url` | Yes | Absolute destination URL accepted by the JavaScript `URL` parser. Send an `http://` or `https://` URL for normal web redirects. |
-| `fingerprint` | Yes | Stable owner ID described above. |
-| `customCode` | No | Case-sensitive, 1–20 ASCII letters or digits (`[0-9A-Za-z]`). If omitted, the service generates a code. |
-| `pin` | No | Additional secret required for later updates when set. |
+| `url` | Yes | Absolute `http://` or `https://` URL with a host, no embedded `user:password@`, at most 2048 characters. |
+| `customCode` | No | Case-sensitive, 1–20 ASCII letters or digits (`[0-9A-Za-z]`). If omitted, the server generates one such as `otter0427`. |
+| `pin` | No | 4–128 characters. When set, it is required for every later update and delete. Stored only as a scrypt hash. |
 
 Successful response (`200 OK`):
 
@@ -74,64 +120,34 @@ Successful response (`200 OK`):
 {
   "shortCode": "article123",
   "shortUrl": "https://0-2.ca/article123",
-  "qrUrl": "https://0-2.ca/api/qr?code=article123"
+  "qrUrl": "https://0-2.ca/api/qr?code=article123",
+  "revision": 1
 }
 ```
 
-Example with cURL:
+A code that is already taken — including one that was deleted — returns `409`.
+Codes are never reused.
 
-```sh
-curl --fail-with-body \
-  -X POST "$SHORT_URL_BASE_URL/api/shorten" \
-  -H 'Content-Type: application/json' \
-  --data "{\"url\":\"https://example.com/articles/123\",\"fingerprint\":\"$SHORT_URL_FINGERPRINT\"}"
-```
+## Follow a short URL or read its data
 
-Example with JavaScript/TypeScript:
-
-```ts
-type CreateShortLinkResponse = {
-  shortCode: string;
-  shortUrl: string;
-  qrUrl: string;
-};
-
-export async function createShortLink(url: string): Promise<CreateShortLinkResponse> {
-  const response = await fetch(`${process.env.SHORT_URL_BASE_URL}/api/shorten`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      url,
-      fingerprint: process.env.SHORT_URL_FINGERPRINT,
-    }),
-  });
-
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? `Shortener returned ${response.status}`);
-  return body;
-}
-```
-
-Store both `shortCode` and `shortUrl`. Use `shortUrl` when sending the short URL
-to a client. Use `shortCode` with the management endpoints below.
-
-## Get a short URL or its data
-
-To send or display the short URL, use the `shortUrl` returned at creation. Opening
-it records a click and returns a permanent `301` redirect:
+Opening the short URL records a click and returns a temporary, uncacheable
+redirect, so a changed destination takes effect on the next request:
 
 ```http
 GET /article123
+
+HTTP/1.1 307 Temporary Redirect
+Location: https://example.com/articles/123
+Cache-Control: no-store
 ```
 
-To retrieve its destination and aggregate metadata without following the
-redirect:
+A deleted code returns `410 Gone`; an unknown code returns `404`.
+
+To read a link without following it:
 
 ```http
 GET /api/links/article123
 ```
-
-No authentication is required. A successful response is:
 
 ```json
 {
@@ -140,74 +156,79 @@ No authentication is required. A successful response is:
   "clicks": 7,
   "created": 1786550400,
   "updated": 1786554000,
-  "last": 1786557600
+  "last": 1786557600,
+  "revision": 3
 }
 ```
 
 Timestamps are Unix seconds. `updated` and `last` are omitted until applicable.
-A missing code returns `404` with `{ "error": "Link not found" }`.
+`revision` increases by one on every change and is required to make the next one.
 
 ## List links owned by the integration
 
 ```http
-GET /api/my-links HTTP/1.1
-X-Fingerprint: YOUR_STABLE_SECRET_OWNER_ID
+GET /api/my-links
+X-Fingerprint: YOUR_OWNER_IDENTIFIER
 ```
 
-```sh
-curl --fail-with-body \
-  "$SHORT_URL_BASE_URL/api/my-links" \
-  -H "X-Fingerprint: $SHORT_URL_FINGERPRINT"
-```
-
-The response is `{ "links": [...] }`, where every item has the same fields as
-the metadata response above. The endpoint may return an empty list on a storage
-error or timeout, so do not treat an empty result as authoritative evidence that
-no links exist.
+Returns `{ "links": [...] }` with the metadata fields above plus `protected`
+(whether the link has a PIN). Deleted links are not listed.
 
 ## Update a destination
 
 ```http
 PATCH /api/links/article123
-Content-Type: application/json
+(signed headers)
 
 {
   "url": "https://example.com/articles/456",
-  "fingerprint": "YOUR_STABLE_SECRET_OWNER_ID",
-  "pin": "optional-update-pin"
+  "revision": 3,
+  "pin": "optional-pin"
 }
 ```
 
-Success is `200` with `{ "success": true }`. An owner mismatch or a missing or
-incorrect PIN returns `403` with
-`{ "error": "Unauthorized or invalid PIN" }`.
+`revision` is the revision you last read. The update applies only if the link
+is still at that revision; success is `200` with
+`{ "success": true, "revision": 4 }`.
 
 ## Delete a link
 
 ```http
 DELETE /api/links/article123
-Content-Type: application/json
+(signed headers)
 
 {
-  "fingerprint": "YOUR_STABLE_SECRET_OWNER_ID"
+  "revision": 4,
+  "pin": "optional-pin"
 }
 ```
 
-Success is `200` with `{ "success": true }`. A missing link returns `404`; an
-owner mismatch returns `403`.
+Deletion keeps the code as a tombstone: it returns `410` from then on and can
+never be created again. Success is `200` with `{ "success": true, "revision": 5 }`.
 
-## Error handling and integration notes
+## Errors
 
-- API errors are JSON objects with an `error` string. Check the HTTP status
-  before consuming a success response.
-- Create commonly returns `400` for missing fields, an invalid URL, an invalid
-  custom code, a duplicate code, or the 10-second create timeout.
-- A caller-selected code can race or collide with an existing code. Retry with a
-  different code, or omit `customCode` and let the server choose one.
-- There is no documented rate-limit response in the application code. Still use
-  bounded retries with exponential backoff for transient `5xx` or network
-  failures; do not blindly retry validation errors.
-- The origin embedded in `shortUrl` and `qrUrl` is controlled by the deployed
-  service's `BASE_URL`. Verify deployment configuration before production use.
-- URL validation currently accepts schemes beyond HTTP(S). Integrations should
-  restrict input to `http:` and `https:` unless another scheme is intentional.
+API errors are JSON objects with an `error` string.
+
+| Status | Meaning |
+| --- | --- |
+| `400` | Invalid input (destination, custom code, PIN length, revision type, body not a JSON object) |
+| `401` | Missing or invalid signature, or a timestamp outside the 5-minute window |
+| `403` | Signed by a different key than the owner's; not the link's owner; PIN missing or wrong; stored destination is not http(s) (redirect only) |
+| `404` | Unknown code |
+| `409` | Code already taken (create), or the link has moved past the `revision` you sent; the response includes `currentRevision`. Re-read and retry. |
+| `410` | The link was deleted |
+| `428` | `revision` missing on update or delete |
+| `429` | Rate limited; wait `Retry-After` seconds. After 5 wrong PINs a link refuses PIN attempts for 15 minutes. |
+| `5xx` | Transient; retry with bounded exponential backoff |
+
+Rate limits per client IP: create 20/min, update and delete 60/min, reads
+120/min, QR 60/min.
+
+## QR codes
+
+```http
+GET /api/qr?code=article123&size=256
+```
+
+`size` is an integer from 64 to 1024 (default 256). Returns `{ "qrImage": "data:image/png;base64,..." }`.
