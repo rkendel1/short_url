@@ -8,6 +8,8 @@ export const LIMITS = {
   mutate: { limit: 60, windowSeconds: 60 },
   read: { limit: 120, windowSeconds: 60 },
   qr: { limit: 60, windowSeconds: 60 },
+  // inline-demo calls server-to-server for every demo page view, so it needs headroom.
+  inlineDemo: { limit: 600, windowSeconds: 60 },
   pinFailures: { limit: 5, windowSeconds: 15 * 60 },
 } as const;
 

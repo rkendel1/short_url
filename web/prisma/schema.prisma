@@ -57,3 +57,54 @@ model RateLimit {
 
   @@id([key, window])
 }
+
+// ---- inline-demo (https://github.com/rkendel1/inline-demo) ----
+// inline-demo keeps no database of its own: its demos, live slots, managed short
+// link and uploaded media live here, scoped to the owner whose key signs its
+// requests. Timestamps are ms epoch, matching inline-demo's data.
+
+model InlineDemo {
+  id      String  @id
+  owner   String
+  title   String
+  kind    String // video | embed
+  src     String
+  poster  String?
+  caption String?
+  clicks  Int     @default(0)
+  plays   Int     @default(0)
+  created BigInt
+  updated BigInt?
+  slots   InlineDemoSlot[]
+
+  @@index([owner, created])
+}
+
+// A named, repointable pointer (e.g. "signature") to the owner's live demo.
+model InlineDemoSlot {
+  owner  String
+  name   String
+  demoId String
+  demo   InlineDemo @relation(fields: [demoId], references: [id], onDelete: Cascade)
+
+  @@id([owner, name])
+}
+
+// The short_url link inline-demo repoints at the live demo, remembered per owner.
+model InlineDemoShortLink {
+  owner    String @id
+  code     String
+  shortUrl String
+}
+
+// Uploaded videos, preview GIFs and posters.
+model InlineDemoAsset {
+  name        String @id
+  owner       String
+  contentType String
+  size        Int
+  bytes       Bytes
+  created     BigInt
+
+  @@index([owner])
+}

@@ -36,8 +36,9 @@ const unauthenticated = (error: string): AuthResult => ({ ok: false, status: 401
  * Verifies that the request was signed by the key bound to its owner.
  * The first signed request for an owner binds its key (trust on first use);
  * every later request must be signed by that same key.
+ * `rawBody` is the exact body sent: JSON text, or raw bytes for uploads.
  */
-export async function authenticate(request: NextRequest, rawBody: string): Promise<AuthResult> {
+export async function authenticate(request: NextRequest, rawBody: string | Uint8Array): Promise<AuthResult> {
   const owner = request.headers.get(OWNER_HEADER);
   const keyHex = request.headers.get(OWNER_KEY_HEADER);
   const timestamp = request.headers.get(TIMESTAMP_HEADER);
@@ -54,7 +55,9 @@ export async function authenticate(request: NextRequest, rawBody: string): Promi
   if (!key) return unauthenticated('Owner key must be a P-256 public key (SPKI, hex)');
   if (!/^[0-9a-f]{128}$/i.test(signatureHex)) return unauthenticated('Invalid signature');
 
-  const bodyHash = createHash('sha256').update(rawBody, 'utf8').digest('hex');
+  const bodyHash = (
+    typeof rawBody === 'string' ? createHash('sha256').update(rawBody, 'utf8') : createHash('sha256').update(rawBody)
+  ).digest('hex');
   const message = canonicalRequest(request.method, request.nextUrl.pathname, timestamp, bodyHash);
   const valid = verify(
     'sha256',

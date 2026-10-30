@@ -232,3 +232,33 @@ GET /api/qr?code=article123&size=256
 ```
 
 `size` is an integer from 64 to 1024 (default 256). Returns `{ "qrImage": "data:image/png;base64,..." }`.
+
+## inline-demo storage
+
+[inline-demo](https://github.com/rkendel1/inline-demo) keeps no database of its
+own: its demos, live slots, managed short link and uploaded media are stored
+here, scoped to the owner that signs the request. Every route below is signed
+exactly like a link mutation (including `GET`, which signs an empty body) and
+only ever sees the signing owner's rows. Limit: 600 requests/min per client IP.
+
+| Method | Path | Body | Response |
+| --- | --- | --- | --- |
+| `GET` | `/api/inline-demo/demos` | | `{ demos }`, newest first |
+| `POST` | `/api/inline-demo/demos` | `{ title, kind: "video"\|"embed", src, poster?, caption? }` | `201 { demo }` |
+| `GET` | `/api/inline-demo/demos/{id}` | | `{ demo }` |
+| `PATCH` | `/api/inline-demo/demos/{id}` | any of the create fields (`""` clears `poster`/`caption`) | `{ demo }` |
+| `DELETE` | `/api/inline-demo/demos/{id}` | | `{ success: true }`; slots pointing at it are removed |
+| `POST` | `/api/inline-demo/demos/{id}/bump` | `{ field: "clicks"\|"plays" }` | `{ success: true }` |
+| `GET` | `/api/inline-demo/slots` | | `{ slots: { name: demoId } }` |
+| `GET` | `/api/inline-demo/slots/{name}` | | `{ demo }` the slot points at |
+| `PUT` | `/api/inline-demo/slots/{name}` | `{ demoId }` | `{ success: true }` |
+| `GET` | `/api/inline-demo/short-link` | | `{ code?, shortUrl? }` |
+| `PUT` | `/api/inline-demo/short-link` | `{ code, shortUrl }` | `{ success: true }` |
+| `POST` | `/api/inline-demo/assets` | raw file bytes; `Content-Type`, `X-Filename` headers | `201 { name }` |
+| `GET` | `/api/inline-demo/assets/{name}` | — (public, unsigned; supports `Range`) | the file |
+
+For an upload the signature's body hash is the SHA-256 of the raw bytes.
+Unknown or other owners' ids return `404`.
+
+Data from an inline-demo local-dev store can be imported on deploy; see
+`DEPLOYMENT.md`.
