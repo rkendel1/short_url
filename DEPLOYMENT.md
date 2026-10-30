@@ -86,6 +86,29 @@ NODE_ENV=production
 
 **Note:** Vercel KV (powered by Upstash Redis) provides persistent, serverless Redis storage. Perfect for Vercel deployments. All data persists through redeployments, so links never break.
 
+### Database step of every deploy
+
+`npm run build` runs `web/scripts/deploy-db.sh` before `next build`, so every
+Vercel deploy:
+
+1. applies pending Prisma migrations to `DATABASE_URL` (short_url's tables and
+   the inline-demo tables in `2_inline_demo`),
+2. generates the Prisma client,
+3. imports inline-demo data if `INLINE_DEMO_IMPORT` is set.
+
+The import (`web/scripts/import-inline-demo.ts`) moves an inline-demo local-dev
+store into this database — inline-demo stores everything here and has no
+database of its own:
+
+```bash
+INLINE_DEMO_IMPORT=inline-demo-data/demos.json   # relative to web/; uploads/ beside it
+INLINE_DEMO_OWNER=<inline-demo's SHORT_URL_OWNER>
+```
+
+It is insert-only: rows that already exist are kept, so leaving the variables
+set never rolls back demos, slots or counts on later deploys. Run it by hand
+with `npm run db:deploy` (or just `npm run db:import-inline-demo`).
+
 ## Docker
 
 ```dockerfile
